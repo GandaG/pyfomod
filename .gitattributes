@@ -1,6 +1,6 @@
 * text=auto eol=lf
 
-*.bat text
+*.bat text eol=crlf
 *.md text
 *.xsd text
 *.sh text

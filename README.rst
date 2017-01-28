@@ -10,3 +10,21 @@ pyFOMOD
 
 
 *Parse, create and modify FOMOD installers.*
+
+Installation
+------------
+
+To install *pyFOMOD*, use pip::
+    
+    pip install pyfomod
+
+Simple as that! You now have *pyFOMOD* available in your environment.
+
+
+Issues
+------
+
+For issues with the FOMOD format rather than *pyFOMOD* itself, feel free to email us at fomod@googlegroups.com.
+For anything else the `issue tracker <https://github.com/GandaG/pyfomod/issues>`_ is always available!
+
+For more information check out *pyFOMOD*'s documentation at `pyfomod.rtfd.io <https://pyfomod.rtfd.io>`_
