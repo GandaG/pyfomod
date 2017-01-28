@@ -22,3 +22,6 @@ install:
 
 script: 
     - tox -e check,py
+
+after_success:
+    - tox -e coveralls
