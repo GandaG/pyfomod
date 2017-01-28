@@ -1,0 +1,12 @@
+* text=auto eol=lf
+
+*.bat text
+*.md text
+*.xsd text
+*.sh text
+*.txt text
+*.ui text
+*.py text
+
+*.png binary
+*.jpg binary
