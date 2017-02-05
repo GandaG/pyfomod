@@ -16,14 +16,14 @@ def valid_fomod(tmpdir):
 
     info_path = os.path.join(fomod_path, 'info.xml')
     info_url = ("https://raw.githubusercontent.com/fomod-lang/fomod/"
-                "master/examples/minimal/fomod/info.xml")
+                "master/examples/02/fomod/info.xml")
     with open(info_path, 'wb') as info_file:
         file_content = requests.get(info_url).content
         info_file.write(file_content)
 
     config_path = os.path.join(fomod_path, 'ModuleConfig.xml')
     config_url = ("https://raw.githubusercontent.com/fomod-lang/fomod/"
-                  "master/examples/minimal/fomod/ModuleConfig.xml")
+                  "master/examples/02/fomod/ModuleConfig.xml")
     with open(config_path, 'wb') as config_file:
         file_content = requests.get(config_url).content
         config_file.write(file_content)
