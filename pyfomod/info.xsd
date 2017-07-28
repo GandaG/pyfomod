@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- NMM reads more tags than are defined here
+     but they seem mostly metadata (?) -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" version="2.0">
+    <xs:element name="fomod">
+        <xs:annotation>
+            <xs:documentation>
+                The following tags are to be filled in according
+                to their tags, shouldn't be hard to figure out.
+            </xs:documentation>
+        </xs:annotation>
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="Name" type="xs:string" minOccurs="0"/>
+                <xs:element name="Author" type="xs:string" minOccurs="0"/>
+                <xs:element name="Version" minOccurs="0">
+                    <xs:complexType>
+                        <xs:simpleContent>
+                            <xs:extension base="xs:string">
+                                <xs:attribute name="MachineVersion" type="xs:string"/>
+                            </xs:extension>
+                        </xs:simpleContent>
+                    </xs:complexType>
+                </xs:element>
+                <xs:element name="Description" type="xs:string" minOccurs="0"/>
+                <xs:element name="Website" type="xs:string" minOccurs="0"/>
+                <xs:element name="Id" type="xs:string" minOccurs="0"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+</xs:schema>
