@@ -1,0 +1,4 @@
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:noNamespaceSchemaLocation="https://github.com/fomod-lang/fomod/blob/5.0/ModuleConfig.xsd">
+    <moduleName>Empty Installer Error</moduleName>
+</config>

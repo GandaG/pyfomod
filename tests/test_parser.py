@@ -1,8 +1,5 @@
-import os
-
 from lxml import etree
 
-import pytest
 from pyfomod import parser
 
 
@@ -33,23 +30,3 @@ class Test_Lookup:
         assert(all(isinstance(elem, parser.TypePattern)) for elem in tp_pat)
         fl_pat = root.findall('.//pattern/files')
         assert(all(isinstance(elem, parser.InstallPattern)) for elem in fl_pat)
-
-
-class Test_Validate_Installer:
-    def test_root(self):
-        with pytest.raises(NotImplementedError):
-            parser.validate_installer(parser.Root())
-
-    def test_tuple(self, single_parse):
-        assert parser.validate_installer(tuple(single_parse))
-
-    def test_list(self, single_parse):
-        assert parser.validate_installer(list(single_parse))
-
-    def test_path(self, valid_fomod):
-        assert parser.validate_installer(valid_fomod)
-        assert parser.validate_installer(os.path.join(valid_fomod, 'fomod'))
-
-    def test_invalid_arg(self, tmpdir):
-        with pytest.raises(ValueError):
-            parser.validate_installer(str(tmpdir))

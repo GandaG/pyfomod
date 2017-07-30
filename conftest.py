@@ -1,6 +1,6 @@
 import os
+import subprocess
 
-import requests
 from lxml import etree
 
 import pytest
@@ -16,22 +16,18 @@ def valid_fomod(tmpdir):
     fomod_path = os.path.join(str(tmpdir), 'fomod')
     os.mkdir(fomod_path)
 
-    try:
-        info_path = os.path.join(fomod_path, 'info.xml')
-        info_url = ("https://raw.githubusercontent.com/fomod-lang/fomod/"
-                    "master/examples/02/fomod/info.xml")
-        with open(info_path, 'wb') as info_file:
-            file_content = requests.get(info_url).content
-            info_file.write(file_content)
+    svn_cmd = "svn export --force " \
+              "https://github.com/fomod-lang/fomod/trunk/examples/02 " + \
+              str(tmpdir)
+    command = subprocess.Popen(svn_cmd, stdout=subprocess.PIPE,
+                               shell=True, stderr=subprocess.STDOUT)
+    stdout, stderr = command.communicate()
+    print(stdout)
 
-        config_path = os.path.join(fomod_path, 'ModuleConfig.xml')
-        config_url = ("https://raw.githubusercontent.com/fomod-lang/fomod/"
-                      "master/examples/02/fomod/ModuleConfig.xml")
-        with open(config_path, 'wb') as config_file:
-            file_content = requests.get(config_url).content
-            config_file.write(file_content)
-    except requests.exceptions.ConnectionError:
+    if "Unable to connect to a repository" in str(stdout):
         pytest.skip("No internet connection.")
+    elif "svn: not found" in str(stdout):
+        pytest.skip("Subversion is required to download the valid installer.")
 
     return str(tmpdir)
 

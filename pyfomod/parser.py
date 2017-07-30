@@ -17,11 +17,8 @@ This module holds the custom parser and the key classes necessary
 for the api.
 """
 
-import os
 
 from lxml import etree
-
-from .io import get_installer_files
 
 
 class FomodElement(etree.ElementBase):
@@ -166,49 +163,3 @@ class _FomodLookup(etree.PythonElementClassLookup):
 
 FOMOD_PARSER = etree.XMLParser(remove_blank_text=True)
 FOMOD_PARSER.set_element_class_lookup(_SpecialLookup(_FomodLookup()))
-INFO_SCHEMA = etree.XMLSchema(etree.parse(
-    os.path.join(os.path.dirname(__file__), 'info.xsd')).getroot())
-CONF_SCHEMA = etree.XMLSchema(etree.parse(
-    os.path.join(os.path.dirname(__file__), 'conf.xsd')).getroot())
-
-
-def validate_installer(installer):
-    """
-    Returns a boolean, True if the installer is valid, False if not.
-
-    Accepts as arguments a parsed Root object, a tuple or list of
-    two parsed lxml trees (info and config, in that order) or a valid
-    path to an installer. The path follows the same rules as when given
-    to get_installer_files.
-
-    Raises ValueError if the argument passed does not comply with the
-    rules above.
-    """
-    # the variable to hold the info and config trees
-    installer_trees = None
-
-    # check if it's a parsed Root object - dead end for now
-    if isinstance(installer, Root):
-        raise NotImplementedError
-
-    # checks if it's a tuple of parsed lxml trees
-    if isinstance(installer, tuple) or isinstance(installer, list):
-        try:
-            installer_trees = (etree.ElementTree(installer[0].getroot()),
-                               etree.ElementTree(installer[1].getroot()))
-        except AttributeError:
-            installer_trees = tuple(installer)
-
-    if installer_trees is None:
-        # last, check if it's a path to the installer
-        try:
-            file_paths = get_installer_files(installer)
-            installer_trees = (etree.parse(file_paths[0]),
-                               etree.parse(file_paths[1]))
-        except IOError:
-            # if installer_trees is still None the argument is invalid
-            raise ValueError
-
-    # return the validity of the documents
-    return (INFO_SCHEMA.validate(installer_trees[0]) and
-            CONF_SCHEMA.validate(installer_trees[1]))
