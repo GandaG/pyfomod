@@ -22,7 +22,6 @@ def valid_fomod(tmpdir):
     command = subprocess.Popen(svn_cmd, stdout=subprocess.PIPE,
                                shell=True, stderr=subprocess.STDOUT)
     stdout, stderr = command.communicate()
-    print(stdout)
 
     if "Unable to connect to a repository" in str(stdout):
         pytest.skip("No internet connection.")

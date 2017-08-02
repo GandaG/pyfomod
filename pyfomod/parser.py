@@ -26,7 +26,91 @@ class FomodElement(etree.ElementBase):
     The base class for all FOMOD elements. This, along with the lxml API,
     serves as the low-level API for pyfomod.
     """
-    pass
+
+    def _setup(self, schema):
+        """
+        Used to setup the class, instead of an __init__
+        since lxml doesn't let us use it.
+        """
+        # pylint: disable=attribute-defined-outside-init
+
+        # the schema this element belongs to
+        self.schema = schema
+
+        # the element that holds minOccurs, etc.
+        self.schema_element = None
+
+        # the type of this element (can be the same as the schema_element)
+        # holds info about attributes, children, etc.
+        self.schema_type = None
+
+    @staticmethod
+    def compare(elem1, elem2, recursive=False):
+        """
+        Compares *elem1* with *elem2*.
+
+        Returns a boolean.
+        """
+        if (elem1.tag != elem2.tag or
+                elem1.text != elem2.text or
+                elem1.tail != elem2.tail or
+                elem1.attrib != elem2.attrib):
+            return False
+        if not recursive:
+            return True
+        if len(elem1) != len(elem2):
+            return False
+        return all(elem1.compare(c1, c2) for c1, c2 in zip(elem1, elem2))
+
+    def _lookup_element(self):
+        """
+        Looks up the corresponding element/complexType in the corresponding
+        schema. Serves as base for all otther lookups.
+        """
+        ancestor_list = list(self.iterancestors())[::-1]
+        ancestor_list.append(self)
+        nsmap = '{' + self.schema.nsmap['xs'] + '}'
+
+        # the current element in schema
+        # in most cases it will actually be a complexType
+        current_element = self.schema
+
+        # the holder element will always be an actual element
+        # it will contain tag, minOccurs, maxOccurs, etc.
+        holder_element = None
+
+        for elem in ancestor_list:
+            xpath_exp = "{}element[@name=\"{}\"]".format(nsmap, elem.tag)
+            holder_element = current_element.find(xpath_exp)
+
+            # this just means there is an order tag between current and next
+            if holder_element is None:
+                ord_exp = "xs:all | xs:sequence | xs:choice"
+                temp = current_element.xpath(ord_exp,
+                                             namespaces=self.schema.nsmap)
+                holder_element = temp[0].find(xpath_exp)
+
+            # a complexType that is used solely for this element
+            if holder_element.get('type') is None:
+                complex_exp = '{}complexType'.format(nsmap)
+                current_element = holder_element.find(complex_exp)
+
+            # it is vital that this is the last element
+            # if not, then the xml is not valid and something is wrong
+            # with this code
+            elif holder_element.get('type').startswith('xs:'):
+                current_element = holder_element
+
+            # last, the complex type is separate from the holder element
+            else:
+                custom_type = holder_element.get('type')
+                complx_exp = '{}complexType[@name=\"{}\"]'.format(nsmap,
+                                                                  custom_type)
+                current_element = self.schema.find(complx_exp)
+
+            # pylint: disable=attribute-defined-outside-init
+            self.schema_element = holder_element
+            self.schema_type = current_element
 
 
 class Root(FomodElement):

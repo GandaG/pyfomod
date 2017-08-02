@@ -24,10 +24,12 @@ from lxml import etree
 from .io import get_installer_files
 from .parser import Root
 
-INFO_SCHEMA = etree.XMLSchema(etree.parse(
-    os.path.join(os.path.dirname(__file__), 'info.xsd')).getroot())
-CONF_SCHEMA = etree.XMLSchema(etree.parse(
-    os.path.join(os.path.dirname(__file__), 'conf.xsd')).getroot())
+INFO_SCHEMA_TREE = etree.parse(
+    os.path.join(os.path.dirname(__file__), 'info.xsd')).getroot()
+INFO_SCHEMA = etree.XMLSchema(INFO_SCHEMA_TREE)
+CONF_SCHEMA_TREE = etree.parse(
+    os.path.join(os.path.dirname(__file__), 'conf.xsd')).getroot()
+CONF_SCHEMA = etree.XMLSchema(CONF_SCHEMA_TREE)
 
 
 def validate_installer(installer):
