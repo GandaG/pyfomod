@@ -52,7 +52,7 @@ def validate_installer(installer):
         raise NotImplementedError
 
     # checks if it's a tuple of parsed lxml trees
-    if isinstance(installer, tuple) or isinstance(installer, list):
+    if isinstance(installer, (list, tuple)):
         try:
             installer_trees = (etree.ElementTree(installer[0].getroot()),
                                etree.ElementTree(installer[1].getroot()))
@@ -389,7 +389,7 @@ def check_for_errors(installer):
         raise NotImplementedError
 
     # checks if it's a tuple of parsed lxml trees
-    if isinstance(installer, tuple) or isinstance(installer, list):
+    if isinstance(installer, (list, tuple)):
         try:
             installer_trees = (etree.ElementTree(installer[0].getroot()),
                                etree.ElementTree(installer[1].getroot()))

@@ -206,8 +206,7 @@ class _SpecialLookup(etree.CustomElementClassLookup):
             return etree.CommentBase
         elif node_type == "PI":
             return etree.PIBase
-        else:
-            return None
+        return None
 
 
 class _FomodLookup(etree.PythonElementClassLookup):
