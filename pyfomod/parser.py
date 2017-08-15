@@ -17,8 +17,18 @@ This module holds the custom parser and the key classes necessary
 for the api.
 """
 
+from collections import namedtuple
 
 from lxml import etree
+
+
+Attribute = namedtuple('Attribute', "name doc default type use restriction")
+
+ATTR_REST_ATTRIBUTES = "type enum_list decimals length max_exc max_inc " \
+                       "max_len min_exc min_inc min_len pattern total_digits"
+AttrRestriction = namedtuple('AttrRestriction', ATTR_REST_ATTRIBUTES)
+
+AttrRestElement = namedtuple('AttrRestElement', 'value doc')
 
 
 class FomodElement(etree.ElementBase):
@@ -83,11 +93,29 @@ class FomodElement(etree.ElementBase):
             xpath_exp = "{}element[@name=\"{}\"]".format(nsmap, elem.tag)
             holder_element = current_element.find(xpath_exp)
 
-            # this just means there is an order tag between current and next
+            # this means there could order tags and/or be nested in a group tag
             if holder_element is None:
                 ord_exp = "xs:all | xs:sequence | xs:choice"
-                temp = current_element.xpath(ord_exp,
-                                             namespaces=self.schema.nsmap)
+
+                # check group tag first
+                group_elem = current_element.find('{}group'.format(nsmap))
+                if group_elem is not None:
+                    group_ref_exp = "{}group[@name" \
+                                    "=\"{}\"]".format(nsmap,
+                                                      group_elem.get('ref'))
+                    group_ref = self.schema.find(group_ref_exp)
+                    first = group_ref.xpath(ord_exp,
+                                            namespaces=self.schema.nsmap)
+                else:
+                    first = current_element.xpath(ord_exp,
+                                                  namespaces=self.schema.nsmap)
+
+                # check for order tags
+                while first:
+                    temp = first
+                    first = first[0].xpath(ord_exp,
+                                           namespaces=self.schema.nsmap)
+
                 holder_element = temp[0].find(xpath_exp)
 
             # a complexType that is used solely for this element
@@ -108,9 +136,161 @@ class FomodElement(etree.ElementBase):
                                                                   custom_type)
                 current_element = self.schema.find(complx_exp)
 
-            # pylint: disable=attribute-defined-outside-init
-            self.schema_element = holder_element
-            self.schema_type = current_element
+        # pylint: disable=attribute-defined-outside-init
+        self.schema_element = holder_element
+        self.schema_type = current_element
+
+    def valid_attributes(self):
+        """
+        Returns a list of **Attribute** named tuples.
+
+        Gets all possible attributes of this element
+        along with some extra info in the named tuple.
+        """
+        if None in (self.schema_element, self.schema_type):
+            self._lookup_element()
+
+        nsmap = '{' + self.schema.nsmap['xs'] + '}'
+        result_list = []
+
+        attr_list = self.schema_type.findall("{}attribute".format(nsmap))
+
+        # this is a mixed complex element, has text and attr
+        if not attr_list:
+            attr_exp = "xs:simpleContent/xs:extension/xs:attribute | " \
+                       "xs:simpleContent/xs:restriction/xs:attribute"
+            attr_list = self.schema_type.xpath(attr_exp,
+                                               namespaces=self.schema.nsmap)
+
+        for attr in attr_list:
+            name = attr.get('name')
+
+            doc_elem = attr.find("{0}annotation/"
+                                 "{0}documentation".format(nsmap))
+            doc = None
+            if doc_elem is not None:
+                doc = doc_elem.text
+
+            default = attr.get('default')
+
+            use = attr.get('use', 'optional')
+
+            attr_type = attr.get('type')
+            restriction = None
+
+            # this is a builtin type
+            if attr_type is not None and attr_type.startswith('xs:'):
+                attr_type = attr_type[3:]
+
+            else:
+                restriction_element = None
+
+                # the attribute has a simpleType below
+                if attr_type is None:
+                    rest_exp = '{0}simpleType/{0}restriction'.format(nsmap)
+                    restriction_element = attr.find(rest_exp)
+
+                # finally this is a custom separate type
+                else:
+                    type_exp = '{}simpleType[@name=\"{}\"]'.format(nsmap,
+                                                                   attr_type)
+                    rest_exp = '{}/{}restriction'.format(type_exp, nsmap)
+                    restriction_element = self.schema.find(rest_exp)
+
+                attr_type = restriction_element.get('base')[3:]
+                rest_type = ''
+                enum_list = []
+                # decimals = None
+                # length = None
+                # max_exc = None
+                # max_inc = None
+                # max_len = None
+                # min_exc = None
+                # min_inc = None
+                # min_len = None
+                # pattern = None
+                # total_digits = None
+
+                for child in restriction_element:
+                    doc_child = None
+                    value = child.get('value')
+
+                    doc_child_elem_exp = "{0}annotation/" \
+                                         "{0}documentation".format(nsmap)
+                    doc_child_elem = child.find(doc_child_elem_exp)
+                    if doc_child_elem is not None:
+                        doc_child = doc_child_elem.text
+
+                    rest_tuple = AttrRestElement(value, doc_child)
+
+                    if child.tag == '{}enumeration'.format(nsmap):
+                        if 'enumeration' not in rest_type:
+                            rest_type += 'enumeration '
+                        enum_list.append(rest_tuple)
+
+                    # elif child.tag == '{}fractionDigits'.format(nsmap):
+                    #     if 'decimals' not in rest_type:
+                    #         rest_type += 'decimals '
+                    #     decimals = rest_tuple
+
+                    # elif child.tag == '{}length'.format(nsmap):
+                    #     if 'length' not in rest_type:
+                    #         rest_type += 'length '
+                    #     length = rest_tuple
+
+                    # elif child.tag == '{}maxExclusive'.format(nsmap):
+                    #     if 'max_exclusive' not in rest_type:
+                    #         rest_type += 'max_exclusive '
+                    #     max_exc = rest_tuple
+
+                    # elif child.tag == '{}maxInclusive'.format(nsmap):
+                    #     if 'max_inclusive' not in rest_type:
+                    #         rest_type += 'max_inclusive '
+                    #     max_inc = rest_tuple
+
+                    # elif child.tag == '{}maxLength'.format(nsmap):
+                    #     if 'max_length' not in rest_type:
+                    #         rest_type += 'max_length '
+                    #     max_len = rest_tuple
+
+                    # elif child.tag == '{}minExclusive'.format(nsmap):
+                    #     if 'min_exclusive' not in rest_type:
+                    #         rest_type += 'min_exclusive '
+                    #     min_exc = rest_tuple
+
+                    # elif child.tag == '{}minInclusive'.format(nsmap):
+                    #     if 'min_inclusive' not in rest_type:
+                    #         rest_type += 'min_inclusive '
+                    #     min_inc = rest_tuple
+
+                    # elif child.tag == '{}minLength'.format(nsmap):
+                    #     if 'min_length' not in rest_type:
+                    #         rest_type += 'min_length '
+                    #     min_len = rest_tuple
+
+                    # elif child.tag == '{}pattern'.format(nsmap):
+                    #     if 'pattern' not in rest_type:
+                    #         rest_type += 'pattern '
+                    #     pattern = rest_tuple
+
+                    # elif child.tag == '{}totalDigits'.format(nsmap):
+                    #     if 'total_digits' not in rest_type:
+                    #         rest_type += 'total_digits '
+                    #     total_digits = rest_tuple
+
+                # restriction = AttrRestriction(rest_type, enum_list, decimals,
+                #                               length, max_exc, max_inc,
+                #                               max_len, min_exc, min_inc,
+                #                               min_len, pattern, total_digits)
+                restriction = AttrRestriction(rest_type, enum_list, None,
+                                              None, None, None,
+                                              None, None, None,
+                                              None, None, None)
+
+            result_list.append(Attribute(name, doc, default, attr_type,
+                                         use, restriction))
+
+        return result_list
 
 
 class Root(FomodElement):

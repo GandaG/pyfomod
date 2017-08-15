@@ -80,6 +80,42 @@ class Test_FomodElement:
         assert parser.FomodElement.compare(current_lookups[1],
                                            conf_schema[-2])
 
+    def test_valid_attributes(self, single_parse):
+        info_schema = validation.INFO_SCHEMA_TREE
+        conf_schema = validation.CONF_SCHEMA_TREE
+
+        # a simple string attribute
+        machine_version_attr = parser.Attribute("MachineVersion", None, None,
+                                                "string", "optional", None)
+        version_elem = single_parse[0][5]
+        version_elem._setup(info_schema)
+        assert version_elem.valid_attributes() == [machine_version_attr]
+
+        # fileDependency element (enumeration)
+        state_rest_list = [parser.AttrRestElement('Missing',
+                                                  "Indicates the mod file is"
+                                                  " not installed."),
+                           parser.AttrRestElement('Inactive', "Indicates the"
+                                                  " mod file is installed, "
+                                                  "but not active."),
+                           parser.AttrRestElement('Active', "Indicates the "
+                                                  "mod file is installed and"
+                                                  " active.")]
+        state_restrictions = parser.AttrRestriction('enumeration ',
+                                                    state_rest_list,
+                                                    None, None, None, None,
+                                                    None, None, None, None,
+                                                    None, None)
+        file_dep_attrs = [parser.Attribute("file", "The file of the mod upon "
+                                           "which a the plugin depends.",
+                                           None, "string", "required", None),
+                          parser.Attribute("state", "The state of the mod "
+                                           "file.", None, "string", "required",
+                                           state_restrictions)]
+        file_dep_elem = single_parse[1][2][1]
+        file_dep_elem._setup(conf_schema)
+        assert file_dep_elem.valid_attributes() == file_dep_attrs
+
 
 class Test_FomodLookup:
     def test_base_class(self, single_parse):
