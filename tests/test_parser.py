@@ -4,6 +4,51 @@ from pyfomod import parser, validation
 
 
 class Test_FomodElement:
+    def test_max_occ(self, single_parse):
+        info_schema = validation.INFO_SCHEMA_TREE
+        conf_schema = validation.CONF_SCHEMA_TREE
+
+        root = single_parse[0]
+        root._setup(info_schema)
+        root._lookup_element()
+        assert root.max_occurences == 1
+
+        file_dep = single_parse[1][2][1]
+        file_dep._setup(conf_schema)
+        file_dep._lookup_element()
+        assert file_dep.max_occurences is None
+
+    def test_min_occ(self, single_parse):
+        conf_schema = validation.CONF_SCHEMA_TREE
+
+        root = single_parse[1]
+        root._setup(conf_schema)
+        root._lookup_element()
+        assert root.min_occurences == 1
+
+        file_dep = single_parse[1][2]
+        file_dep._setup(conf_schema)
+        file_dep._lookup_element()
+        assert file_dep.min_occurences == 0
+
+    def test_type(self, single_parse):
+        info_schema = validation.INFO_SCHEMA_TREE
+
+        root = single_parse[0]
+        root._setup(info_schema)
+        root._lookup_element()
+        assert root.type is None
+
+        name = single_parse[0][1]
+        name._setup(info_schema)
+        name._lookup_element()
+        assert name.type == 'string'
+
+        version = single_parse[0][5]
+        version._setup(info_schema)
+        version._lookup_element()
+        assert version.type == 'string'
+
     def test_compare(self):
         elem_std = etree.fromstring("<a boo=\"2\" goo=\"5\">text<b/>tail</a>",
                                     parser=parser.FOMOD_PARSER)

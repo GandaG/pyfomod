@@ -37,6 +37,43 @@ class FomodElement(etree.ElementBase):
     serves as the low-level API for pyfomod.
     """
 
+    @property
+    def max_occurences(self):
+        """
+        Returns the maximum times this element can be repeated or
+        *None* if there is no limit.
+        """
+        number = self.schema_element.get('maxOccurs', 1)
+        if number == 'unbounded':
+            return None
+        return int(number)
+
+    @property
+    def min_occurences(self):
+        """
+        Returns the minimum times this element has to be repeated.
+        """
+        return int(self.schema_element.get('minOccurs', 1))
+
+    @property
+    def type(self):
+        """
+        The text type of this element. None if no text is allowed.
+        """
+        if self.schema_element is self.schema_type:
+            return self.schema_type.get('type')[3:]
+
+        nsmap = '{' + self.schema.nsmap['xs'] + '}'
+        content_exp = "{}simpleContent".format(nsmap)
+        content = self.schema_type.find(content_exp)
+
+        if content is None:
+            return None
+
+        type_exp = "xs:extension | xs:restriction"
+        base_elem = content.xpath(type_exp, namespaces=self.schema.nsmap)[0]
+        return base_elem.get('base')[3:]
+
     def _setup(self, schema):
         """
         Used to setup the class, instead of an __init__
