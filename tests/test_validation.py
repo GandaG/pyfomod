@@ -11,21 +11,21 @@ class Test_Validate_Installer:
         with pytest.raises(NotImplementedError):
             validation.validate_installer(parser.Root())
 
-    def test_tuple(self, single_parse):
-        assert validation.validate_installer(tuple(single_parse))
-        single_parse = (etree.ElementTree(single_parse[0]),
-                        etree.ElementTree(single_parse[1]))
-        assert validation.validate_installer(tuple(single_parse))
+    def test_tuple(self, simple_parse):
+        assert validation.validate_installer(tuple(simple_parse))
+        simple_parse = (etree.ElementTree(simple_parse[0]),
+                        etree.ElementTree(simple_parse[1]))
+        assert validation.validate_installer(tuple(simple_parse))
 
-    def test_list(self, single_parse):
-        assert validation.validate_installer(list(single_parse))
-        single_parse = (etree.ElementTree(single_parse[0]),
-                        etree.ElementTree(single_parse[1]))
-        assert validation.validate_installer(list(single_parse))
+    def test_list(self, simple_parse):
+        assert validation.validate_installer(list(simple_parse))
+        simple_parse = (etree.ElementTree(simple_parse[0]),
+                        etree.ElementTree(simple_parse[1]))
+        assert validation.validate_installer(list(simple_parse))
 
-    def test_path(self, valid_fomod):
-        assert validation.validate_installer(valid_fomod)
-        assert validation.validate_installer(os.path.join(valid_fomod,
+    def test_path(self, example_fomod):
+        assert validation.validate_installer(example_fomod)
+        assert validation.validate_installer(os.path.join(example_fomod,
                                                           'fomod'))
 
     def test_invalid_arg(self, tmpdir):
@@ -38,21 +38,21 @@ class Test_Check_Errors:
         with pytest.raises(NotImplementedError):
             validation.check_for_errors(parser.Root())
 
-    def test_tuple(self, single_parse):
-        assert not validation.check_for_errors(tuple(single_parse))
-        single_parse = (etree.ElementTree(single_parse[0]),
-                        etree.ElementTree(single_parse[1]))
-        assert not validation.check_for_errors(tuple(single_parse))
+    def test_tuple(self, simple_parse):
+        assert not validation.check_for_errors(tuple(simple_parse))
+        simple_parse = (etree.ElementTree(simple_parse[0]),
+                        etree.ElementTree(simple_parse[1]))
+        assert not validation.check_for_errors(tuple(simple_parse))
 
-    def test_list(self, single_parse):
-        assert not validation.check_for_errors(list(single_parse))
-        single_parse = (etree.ElementTree(single_parse[0]),
-                        etree.ElementTree(single_parse[1]))
-        assert not validation.check_for_errors(list(single_parse))
+    def test_list(self, simple_parse):
+        assert not validation.check_for_errors(list(simple_parse))
+        simple_parse = (etree.ElementTree(simple_parse[0]),
+                        etree.ElementTree(simple_parse[1]))
+        assert not validation.check_for_errors(list(simple_parse))
 
-    def test_path(self, valid_fomod):
-        assert not validation.check_for_errors(valid_fomod)
-        assert not validation.check_for_errors(os.path.join(valid_fomod,
+    def test_path(self, example_fomod):
+        assert not validation.check_for_errors(example_fomod)
+        assert not validation.check_for_errors(os.path.join(example_fomod,
                                                             'fomod'))
 
     def test_invalid_arg(self, tmpdir):

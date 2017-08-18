@@ -3,109 +3,118 @@ from lxml import etree
 from pyfomod import parser, validation
 
 
-class Test_FomodElement:
-    def test_max_occ(self, single_parse):
-        info_schema = validation.INFO_SCHEMA_TREE
-        conf_schema = validation.CONF_SCHEMA_TREE
+info_schema = validation.INFO_SCHEMA_TREE
+conf_schema = validation.CONF_SCHEMA_TREE
 
-        root = single_parse[0]
+
+class Test_FomodElement:
+    def test_max_occ_default_value(self, simple_parse):
+        root = simple_parse[0]
         root._setup(info_schema)
         root._lookup_element()
         assert root.max_occurences == 1
 
-        file_dep = single_parse[1][2][1]
+    def test_max_occ_unbounded(self, simple_parse):
+        file_dep = simple_parse[1][2][1]
         file_dep._setup(conf_schema)
         file_dep._lookup_element()
         assert file_dep.max_occurences is None
 
-    def test_min_occ(self, single_parse):
-        conf_schema = validation.CONF_SCHEMA_TREE
-
-        root = single_parse[1]
+    def test_min_occ_default_value(self, simple_parse):
+        root = simple_parse[1]
         root._setup(conf_schema)
         root._lookup_element()
         assert root.min_occurences == 1
 
-        file_dep = single_parse[1][2]
+    def test_min_occ_normal_value(self, simple_parse):
+        file_dep = simple_parse[1][2]
         file_dep._setup(conf_schema)
         file_dep._lookup_element()
         assert file_dep.min_occurences == 0
 
-    def test_type(self, single_parse):
-        info_schema = validation.INFO_SCHEMA_TREE
-
-        root = single_parse[0]
+    def test_type_none(self, simple_parse):
+        root = simple_parse[0]
         root._setup(info_schema)
         root._lookup_element()
         assert root.type is None
 
-        name = single_parse[0][1]
+    def test_type_simple_element(self, simple_parse):
+        name = simple_parse[0][1]
         name._setup(info_schema)
         name._lookup_element()
         assert name.type == 'string'
 
-        version = single_parse[0][5]
+    def test_type_complex_element(self, simple_parse):
+        version = simple_parse[0][5]
         version._setup(info_schema)
         version._lookup_element()
         assert version.type == 'string'
 
-    def test_compare(self):
-        elem_std = etree.fromstring("<a boo=\"2\" goo=\"5\">text<b/>tail</a>",
-                                    parser=parser.FOMOD_PARSER)
+    def std_cmp_elem(self):
+        return etree.fromstring("<a boo=\"2\" goo=\"5\">text<b/>tail</a>",
+                                parser=parser.FOMOD_PARSER)
+
+    def test_compare_changed_order(self):
         elem_ord = etree.fromstring("<a goo=\"5\" boo=\"2\">text<b/>tail</a>",
                                     parser=parser.FOMOD_PARSER)
-        assert elem_std.compare(elem_std, elem_ord)
+        assert elem_ord.compare(self.std_cmp_elem(), elem_ord)
 
+    def test_compare_changed_attribute(self):
         elem_atr = etree.fromstring("<a boo=\"4\" goo=\"5\">text<b/>tail</a>",
                                     parser=parser.FOMOD_PARSER)
-        assert not elem_std.compare(elem_std, elem_atr)
+        assert not elem_atr.compare(self.std_cmp_elem(), elem_atr)
 
+    def test_compare_changed_tail(self):
         elem_tail = etree.fromstring("<a boo=\"2\" goo=\"5\">text<b/>err</a>",
                                      parser=parser.FOMOD_PARSER)
-        assert not elem_std[0].compare(elem_std[0], elem_tail[0])
+        assert not elem_tail[0].compare(self.std_cmp_elem()[0], elem_tail[0])
 
+    def test_compare_changed_text(self):
         elem_text = etree.fromstring("<a boo=\"2\" goo=\"5\">err<b/>tail</a>",
                                      parser=parser.FOMOD_PARSER)
-        assert not elem_std.compare(elem_std, elem_text)
+        assert not elem_text.compare(self.std_cmp_elem(), elem_text)
 
+    def test_compare_changed_tag(self):
         elem_tag = etree.fromstring("<c boo=\"2\" goo=\"5\">text<b/>tail</c>",
                                     parser=parser.FOMOD_PARSER)
-        assert not elem_std.compare(elem_std, elem_tag)
+        assert not elem_tag.compare(self.std_cmp_elem(), elem_tag)
 
+    def test_compare_changed_children(self):
         elem_len = etree.fromstring("<a boo=\"2\" goo=\"5\">"
                                     "text<b/><c/>tail</a>",
                                     parser=parser.FOMOD_PARSER)
-        assert not elem_std.compare(elem_std, elem_len, True)
+        assert not elem_len.compare(self.std_cmp_elem(), elem_len, True)
 
+    def test_compare_changed_child_tag(self):
         elem_cld = etree.fromstring("<a boo=\"2\" goo=\"5\">text<c/>tail</a>",
                                     parser=parser.FOMOD_PARSER)
-        assert not elem_std.compare(elem_std, elem_cld, True)
+        assert not elem_cld.compare(self.std_cmp_elem(), elem_cld, True)
 
-    def test_setup(self, single_parse):
-        for elem in single_parse[0].iter(tag=etree.Element):
+    def test_setup_info(self, simple_parse):
+        for elem in simple_parse[0].iter(tag=etree.Element):
             elem._setup(validation.INFO_SCHEMA_TREE)
             assert parser.FomodElement.compare(elem.schema,
                                                validation.INFO_SCHEMA_TREE)
 
-        for elem in single_parse[1].iter(tag=etree.Element):
+    def test_setup_config(self, simple_parse):
+        for elem in simple_parse[1].iter(tag=etree.Element):
             elem._setup(validation.CONF_SCHEMA_TREE)
             assert parser.FomodElement.compare(elem.schema,
                                                validation.CONF_SCHEMA_TREE)
 
-    def test_lookup_element(self, single_parse):
-        info_schema = validation.INFO_SCHEMA_TREE
-        conf_schema = validation.CONF_SCHEMA_TREE
-
-        root = single_parse[0]
+    def test_lookup_element_private_complex_type(self, simple_parse):
+        root = simple_parse[0]
         root._setup(info_schema)
         root._lookup_element()
         current_lookups = (root.schema_element,
                            root.schema_type)
-        assert parser.FomodElement.compare(current_lookups[0], info_schema[0])
+        assert parser.FomodElement.compare(current_lookups[0],
+                                           info_schema[0])
         assert parser.FomodElement.compare(current_lookups[1],
                                            info_schema[0][1])
 
-        name = single_parse[0][1]
+    def test_lookup_element_simple_element(self, simple_parse):
+        name = simple_parse[0][1]
         name._setup(info_schema)
         name._lookup_element()
         current_lookups = (name.schema_element,
@@ -115,7 +124,8 @@ class Test_FomodElement:
         assert parser.FomodElement.compare(current_lookups[1],
                                            info_schema[0][1][0][0])
 
-        config = single_parse[1]
+    def test_lookup_element_separate_complex_type(self, simple_parse):
+        config = simple_parse[1]
         config._setup(conf_schema)
         config._lookup_element()
         current_lookups = (config.schema_element,
@@ -125,17 +135,26 @@ class Test_FomodElement:
         assert parser.FomodElement.compare(current_lookups[1],
                                            conf_schema[-2])
 
-    def test_valid_attributes(self, single_parse):
-        info_schema = validation.INFO_SCHEMA_TREE
-        conf_schema = validation.CONF_SCHEMA_TREE
+    def test_lookup_element_group_order_tags(self, simple_parse):
+        file_dep = simple_parse[1][2][1]
+        file_dep._setup(conf_schema)
+        file_dep._lookup_element()
+        current_lookups = (file_dep.schema_element,
+                           file_dep.schema_type)
+        assert parser.FomodElement.compare(current_lookups[0],
+                                           conf_schema[4][1][0][0])
+        assert parser.FomodElement.compare(current_lookups[1],
+                                           conf_schema[2])
 
+    def test_valid_attributes_simple_string(self, simple_parse):
         # a simple string attribute
         machine_version_attr = parser.Attribute("MachineVersion", None, None,
                                                 "string", "optional", None)
-        version_elem = single_parse[0][5]
+        version_elem = simple_parse[0][5]
         version_elem._setup(info_schema)
         assert version_elem.valid_attributes() == [machine_version_attr]
 
+    def test_valid_attributes_restriction(self, simple_parse):
         # fileDependency element (enumeration)
         state_rest_list = [parser.AttrRestElement('Missing',
                                                   "Indicates the mod file is"
@@ -157,19 +176,19 @@ class Test_FomodElement:
                           parser.Attribute("state", "The state of the mod "
                                            "file.", None, "string", "required",
                                            state_restrictions)]
-        file_dep_elem = single_parse[1][2][1]
+        file_dep_elem = simple_parse[1][2][1]
         file_dep_elem._setup(conf_schema)
         assert file_dep_elem.valid_attributes() == file_dep_attrs
 
 
 class Test_FomodLookup:
-    def test_base_class(self, single_parse):
-        for tree in single_parse:
+    def test_base_class(self, simple_parse):
+        for tree in simple_parse:
             for element in tree.iter(tag=etree.Element):
                 assert isinstance(element, parser.FomodElement)
 
-    def test_subclasses(self, single_parse):
-        root = single_parse[1]
+    def test_subclasses(self, simple_parse):
+        root = simple_parse[1]
         assert isinstance(root, parser.Root)
         mod_dep = root.findall('.//moduleDependencies')
         assert(all(isinstance(elem, parser.Dependencies)) for elem in mod_dep)

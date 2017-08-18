@@ -21,7 +21,6 @@ from collections import namedtuple
 
 from lxml import etree
 
-
 Attribute = namedtuple('Attribute', "name doc default type use restriction")
 
 ATTR_REST_ATTRIBUTES = "type enum_list decimals length max_exc max_inc " \

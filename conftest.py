@@ -8,7 +8,7 @@ from pyfomod import io, parser
 
 
 @pytest.fixture
-def valid_fomod(tmpdir):
+def example_fomod(tmpdir, scope='session'):
     """
     Very simply, return the path to the root of a valid
     fomod-containing package.
@@ -32,33 +32,12 @@ def valid_fomod(tmpdir):
 
 
 @pytest.fixture
-def missing_info_fomod(valid_fomod):
-    """
-    Returns a fomod-containing package with a missing
-    info.xml file.
-    """
-    info_path = os.path.join(valid_fomod, 'fomod', 'info.xml')
-    os.remove(info_path)
-    return valid_fomod
-
-
-@pytest.fixture
-def missing_config_fomod(valid_fomod):
-    """
-    Returns a fomod-containing package with a missing
-    ModuleConfig.xml file.
-    """
-    config_path = os.path.join(valid_fomod, 'fomod', 'ModuleConfig.xml')
-    os.remove(config_path)
-    return valid_fomod
-
-@pytest.fixture
-def single_parse(valid_fomod):
+def simple_parse(example_fomod, scope='session'):
     """
     A simple parse of valid fomod files.
     Returns an *info*, *config* tuple.
     """
-    fomod_files = io.get_installer_files(valid_fomod)
+    fomod_files = io.get_installer_files(example_fomod)
     info = etree.parse(fomod_files[0], parser=parser.FOMOD_PARSER).getroot()
     config = etree.parse(fomod_files[1], parser=parser.FOMOD_PARSER).getroot()
     return info, config
