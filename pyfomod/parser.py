@@ -36,16 +36,23 @@ class FomodElement(etree.ElementBase):
     serves as the low-level API for pyfomod.
     """
 
+    @staticmethod
+    def _element_get_max_occurs(element):
+        """
+        Returns maxOccurs for the specified element. None if unbounded.
+        """
+        max_occ = element.get('maxOccurs', 1)
+        if max_occ == 'unbounded':
+            return None
+        return int(max_occ)
+
     @property
     def max_occurences(self):
         """
         Returns the maximum times this element can be repeated or
         *None* if there is no limit.
         """
-        number = self.schema_element.get('maxOccurs', 1)
-        if number == 'unbounded':
-            return None
-        return int(number)
+        return self._element_get_max_occurs(self.schema_element)
 
     @property
     def min_occurences(self):

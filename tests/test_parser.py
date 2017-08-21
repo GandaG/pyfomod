@@ -8,6 +8,18 @@ conf_schema = validation.CONF_SCHEMA_TREE
 
 
 class Test_FomodElement:
+    def test_element_get_max_occurs_normal(self, simple_parse):
+        root = simple_parse[0]
+        root._setup(info_schema)
+        root._lookup_element()
+        assert root._element_get_max_occurs(root.schema_element) == 1
+
+    def test_element_get_max_occurs_unbounded(self, simple_parse):
+        file_d = simple_parse[1][2][1]
+        file_d._setup(conf_schema)
+        file_d._lookup_element()
+        assert file_d._element_get_max_occurs(file_d.schema_element) is None
+
     def test_max_occ_default_value(self, simple_parse):
         root = simple_parse[0]
         root._setup(info_schema)
