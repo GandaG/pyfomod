@@ -52,26 +52,26 @@ class FomodElement(etree.ElementBase):
         Returns the maximum times this element can be repeated or
         *None* if there is no limit.
         """
-        return self._element_get_max_occurs(self.schema_element)
+        return self._element_get_max_occurs(self._schema_element)
 
     @property
     def min_occurences(self):
         """
         Returns the minimum times this element has to be repeated.
         """
-        return int(self.schema_element.get('minOccurs', 1))
+        return int(self._schema_element.get('minOccurs', 1))
 
     @property
     def type(self):
         """
         The text type of this element. None if no text is allowed.
         """
-        if self.schema_element is self.schema_type:
-            return self.schema_type.get('type')[3:]
+        if self._schema_element is self._schema_type:
+            return self._schema_type.get('type')[3:]
 
         nsmap = '{' + self.schema.nsmap['xs'] + '}'
         content_exp = "{}simpleContent".format(nsmap)
-        content = self.schema_type.find(content_exp)
+        content = self._schema_type.find(content_exp)
 
         if content is None:
             return None
@@ -91,11 +91,11 @@ class FomodElement(etree.ElementBase):
         self.schema = schema
 
         # the element that holds minOccurs, etc.
-        self.schema_element = None
+        self._schema_element = None
 
         # the type of this element (can be the same as the schema_element)
         # holds info about attributes, children, etc.
-        self.schema_type = None
+        self._schema_type = None
 
     @staticmethod
     def compare(elem1, elem2, recursive=False):
@@ -180,8 +180,8 @@ class FomodElement(etree.ElementBase):
                 current_element = self.schema.find(complx_exp)
 
         # pylint: disable=attribute-defined-outside-init
-        self.schema_element = holder_element
-        self.schema_type = current_element
+        self._schema_element = holder_element
+        self._schema_type = current_element
 
     def valid_attributes(self):
         """
@@ -190,20 +190,20 @@ class FomodElement(etree.ElementBase):
         Gets all possible attributes of this element
         along with some extra info in the named tuple.
         """
-        if None in (self.schema_element, self.schema_type):
+        if None in (self._schema_element, self._schema_type):
             self._lookup_element()
 
         nsmap = '{' + self.schema.nsmap['xs'] + '}'
         result_list = []
 
-        attr_list = self.schema_type.findall("{}attribute".format(nsmap))
+        attr_list = self._schema_type.findall("{}attribute".format(nsmap))
 
         # this is a mixed complex element, has text and attr
         if not attr_list:
             attr_exp = "xs:simpleContent/xs:extension/xs:attribute | " \
                        "xs:simpleContent/xs:restriction/xs:attribute"
-            attr_list = self.schema_type.xpath(attr_exp,
-                                               namespaces=self.schema.nsmap)
+            attr_list = self._schema_type.xpath(attr_exp,
+                                                namespaces=self.schema.nsmap)
 
         for attr in attr_list:
             name = attr.get('name')

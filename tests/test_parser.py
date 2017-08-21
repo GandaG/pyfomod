@@ -12,13 +12,13 @@ class Test_FomodElement:
         root = simple_parse[0]
         root._setup(info_schema)
         root._lookup_element()
-        assert root._element_get_max_occurs(root.schema_element) == 1
+        assert root._element_get_max_occurs(root._schema_element) == 1
 
     def test_element_get_max_occurs_unbounded(self, simple_parse):
         file_d = simple_parse[1][2][1]
         file_d._setup(conf_schema)
         file_d._lookup_element()
-        assert file_d._element_get_max_occurs(file_d.schema_element) is None
+        assert file_d._element_get_max_occurs(file_d._schema_element) is None
 
     def test_max_occ_default_value(self, simple_parse):
         root = simple_parse[0]
@@ -118,8 +118,8 @@ class Test_FomodElement:
         root = simple_parse[0]
         root._setup(info_schema)
         root._lookup_element()
-        current_lookups = (root.schema_element,
-                           root.schema_type)
+        current_lookups = (root._schema_element,
+                           root._schema_type)
         assert parser.FomodElement.compare(current_lookups[0],
                                            info_schema[0])
         assert parser.FomodElement.compare(current_lookups[1],
@@ -129,8 +129,8 @@ class Test_FomodElement:
         name = simple_parse[0][1]
         name._setup(info_schema)
         name._lookup_element()
-        current_lookups = (name.schema_element,
-                           name.schema_type)
+        current_lookups = (name._schema_element,
+                           name._schema_type)
         assert parser.FomodElement.compare(current_lookups[0],
                                            info_schema[0][1][0][0])
         assert parser.FomodElement.compare(current_lookups[1],
@@ -140,8 +140,8 @@ class Test_FomodElement:
         config = simple_parse[1]
         config._setup(conf_schema)
         config._lookup_element()
-        current_lookups = (config.schema_element,
-                           config.schema_type)
+        current_lookups = (config._schema_element,
+                           config._schema_type)
         assert parser.FomodElement.compare(current_lookups[0],
                                            conf_schema[-1])
         assert parser.FomodElement.compare(current_lookups[1],
@@ -151,8 +151,8 @@ class Test_FomodElement:
         file_dep = simple_parse[1][2][1]
         file_dep._setup(conf_schema)
         file_dep._lookup_element()
-        current_lookups = (file_dep.schema_element,
-                           file_dep.schema_type)
+        current_lookups = (file_dep._schema_element,
+                           file_dep._schema_type)
         assert parser.FomodElement.compare(current_lookups[0],
                                            conf_schema[4][1][0][0])
         assert parser.FomodElement.compare(current_lookups[1],
