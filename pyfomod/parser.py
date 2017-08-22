@@ -113,7 +113,8 @@ class FomodElement(etree.ElementBase):
             return True
         if len(elem1) != len(elem2):
             return False
-        return all(elem1.compare(c1, c2) for c1, c2 in zip(elem1, elem2))
+        compare = FomodElement.compare
+        return all(compare(c1, c2) for c1, c2 in zip(elem1, elem2))
 
     def _lookup_element(self):
         """
