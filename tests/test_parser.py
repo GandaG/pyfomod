@@ -198,6 +198,37 @@ class Test_FomodElement:
         file_dep_elem._setup(conf_schema)
         assert file_dep_elem.valid_attributes() == file_dep_attrs
 
+    def composite_dependency_valid_children(self):
+        file_dep_child = parser.ChildElement('fileDependency', None, 1)
+        flag_dep_child = parser.ChildElement('flagDependency', None, 1)
+        game_dep_child = parser.ChildElement('gameDependency', 1, 0)
+        fomm_dep_child = parser.ChildElement('fommDependency', 1, 0)
+        dep_child = parser.ChildElement('dependencies', 1, 1)
+        choice_ord = parser.OrderIndicator('choice',
+                                           [file_dep_child, flag_dep_child,
+                                            game_dep_child, fomm_dep_child,
+                                            dep_child],
+                                           None, 1)
+        return parser.OrderIndicator('sequence', [choice_ord], 1, 1)
+
+    def test_valid_children_parse_order(self):
+        parse_order = parser.FomodElement._valid_children_parse_order
+        sequence_ord = self.composite_dependency_valid_children()
+        assert parse_order(conf_schema[4][1]) == sequence_ord
+
+    def test_valid_children_group_and_order(self, simple_parse):
+        mod_dep = simple_parse[1][2]
+        mod_dep._setup(conf_schema)
+        mod_dep._lookup_element()
+        sequence_ord = self.composite_dependency_valid_children()
+        assert mod_dep.valid_children() == sequence_ord
+
+    def test_valid_children_none(self, simple_parse):
+        name = simple_parse[0][1]
+        name._setup(info_schema)
+        name._lookup_element()
+        assert name.valid_children() is None
+
 
 class Test_FomodLookup:
     def test_base_class(self, simple_parse):

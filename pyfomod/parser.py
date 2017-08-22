@@ -29,6 +29,11 @@ AttrRestriction = namedtuple('AttrRestriction', ATTR_REST_ATTRIBUTES)
 
 AttrRestElement = namedtuple('AttrRestElement', 'value doc')
 
+ORDER_INDICATOR_ATTRIBUTES = 'type element_list max_occ min_occ'
+OrderIndicator = namedtuple('OrderIndicator', ORDER_INDICATOR_ATTRIBUTES)
+
+ChildElement = namedtuple('ChildElement', 'tag max_occ min_occ')
+
 
 class FomodElement(etree.ElementBase):
     """
@@ -345,6 +350,62 @@ class FomodElement(etree.ElementBase):
                                          use, restriction))
 
         return result_list
+
+    @classmethod
+    def _valid_children_parse_order(cls, ord_elem):
+        """
+        Parses the *ord_elem* order indicator.
+        Needs to be separate from the main method to be recurrent.
+        Returns an OrderIndicator named tuple for the *ord_elem*.
+        """
+        child_list = []
+        child_exp = 'xs:element | xs:all | xs:sequence | xs:choice'
+        nsmap = '{' + ord_elem.nsmap['xs'] + '}'
+
+        for child in ord_elem.xpath(child_exp, namespaces=ord_elem.nsmap):
+            child_tuple = None
+            if child.tag == '{}element'.format(nsmap):
+                child_max_occ = cls._element_get_max_occurs(child)
+                child_tuple = ChildElement(child.get('name'),
+                                           child_max_occ,
+                                           int(child.get('minOccurs', 1)))
+            else:
+                child_tuple = cls._valid_children_parse_order(child)
+            child_list.append(child_tuple)
+
+        return OrderIndicator(etree.QName(ord_elem).localname, child_list,
+                              cls._element_get_max_occurs(ord_elem),
+                              int(ord_elem.get('minOccurs', 1)))
+
+    def valid_children(self):
+        """
+        Gets all the possible, valid children for this element.
+
+        Returns an OrderIndicator namedtuple.
+        """
+        nsmap = '{' + self.schema.nsmap['xs'] + '}'
+
+        # if it's a simple element, no children
+        if self.compare(self._schema_type, self._schema_element, True):
+            return None
+
+        # the order tuple to return
+        initial_ord = None
+
+        # the valid order indicators
+        order_indicators = ['all', 'sequence', 'choice']
+
+        first_exp = 'xs:group | xs:all | xs:sequence | xs:choice'
+        first = self._schema_type.xpath(first_exp,
+                                        namespaces=self.schema.nsmap)[0]
+
+        if first.tag == '{}group'.format(nsmap):
+            first = self._get_order_from_group(first, self.schema)
+
+        if etree.QName(first).localname in order_indicators:
+            initial_ord = self._valid_children_parse_order(first)
+
+        return initial_ord
 
 
 class Root(FomodElement):
