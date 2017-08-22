@@ -7,12 +7,13 @@ import pytest
 from pyfomod import io, parser
 
 
-@pytest.fixture
-def example_fomod(tmpdir, scope='session'):
+@pytest.fixture(scope='session')
+def example_fomod(tmpdir_factory):
     """
     Very simply, return the path to the root of a valid
     fomod-containing package.
     """
+    tmpdir = tmpdir_factory.mktemp('fomod_package')
     fomod_path = os.path.join(str(tmpdir), 'fomod')
     os.mkdir(fomod_path)
 
@@ -31,8 +32,8 @@ def example_fomod(tmpdir, scope='session'):
     return str(tmpdir)
 
 
-@pytest.fixture
-def simple_parse(example_fomod, scope='session'):
+@pytest.fixture(scope='session')
+def simple_parse(example_fomod):
     """
     A simple parse of valid fomod files.
     Returns an *info*, *config* tuple.
