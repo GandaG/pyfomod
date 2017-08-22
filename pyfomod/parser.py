@@ -116,6 +116,20 @@ class FomodElement(etree.ElementBase):
         compare = FomodElement.compare
         return all(compare(c1, c2) for c1, c2 in zip(elem1, elem2))
 
+    @staticmethod
+    def _get_order_from_group(group_elem, root_elem):
+        """
+        Returns the order indicator from a group reference.
+        """
+        nsmap = '{' + root_elem.nsmap['xs'] + '}'
+        ord_exp = "xs:all | xs:sequence | xs:choice"
+        group_ref_exp = "{}group[@name=\"{}\"]".format(nsmap,
+                                                       group_elem.get('ref'))
+
+        group_ref = root_elem.find(group_ref_exp)
+        return group_ref.xpath(ord_exp,
+                               namespaces=root_elem.nsmap)[0]
+
     def _lookup_element(self):
         """
         Looks up the corresponding element/complexType in the corresponding
@@ -144,12 +158,8 @@ class FomodElement(etree.ElementBase):
                 # check group tag first
                 group_elem = current_element.find('{}group'.format(nsmap))
                 if group_elem is not None:
-                    group_ref_exp = "{}group[@name" \
-                                    "=\"{}\"]".format(nsmap,
-                                                      group_elem.get('ref'))
-                    group_ref = self.schema.find(group_ref_exp)
-                    first = group_ref.xpath(ord_exp,
-                                            namespaces=self.schema.nsmap)
+                    first = [self._get_order_from_group(group_elem,
+                                                        self.schema)]
                 else:
                     first = current_element.xpath(ord_exp,
                                                   namespaces=self.schema.nsmap)

@@ -114,6 +114,12 @@ class Test_FomodElement:
             assert parser.FomodElement.compare(elem.schema,
                                                validation.CONF_SCHEMA_TREE)
 
+    def test_get_order_from_group(self):
+        group_elem = conf_schema[4][1]
+        result = parser.FomodElement._get_order_from_group(conf_schema[5][1],
+                                                           conf_schema)
+        assert parser.FomodElement.compare(group_elem, result, True)
+
     def test_lookup_element_private_complex_type(self, simple_parse):
         root = simple_parse[0]
         root._setup(info_schema)
