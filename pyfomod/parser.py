@@ -21,24 +21,89 @@ from collections import namedtuple
 
 from lxml import etree
 
-Attribute = namedtuple('Attribute', "name doc default type use restriction")
+_Attribute = namedtuple('_Attribute', "name doc default type use restriction")
+"""
+This ``namedtuple`` represents a single possible attribute for a FomodElement.
 
-ATTR_REST_ATTRIBUTES = "type enum_list decimals length max_exc max_inc " \
-                       "max_len min_exc min_inc min_len pattern total_digits"
-AttrRestriction = namedtuple('AttrRestriction', ATTR_REST_ATTRIBUTES)
+Attributes:
+    name (str): The identifier of this attribute.
+    doc (str): The schema documentation for this attribute.
+    default (str or None): The default value for this attribute or None if
+        none is specified.
+    type (str): The type of this attribute's value.
+    use (str): Either ``'optional'``, ``'required'`` or ``'prohibited'``.
+    restriction (_AttrRestriction): A namedtuple with the attribute's
+        restrictions. For more info refer to :py:class:`_AttrRestriction`.
+"""
 
-AttrRestElement = namedtuple('AttrRestElement', 'value doc')
+_ATTR_REST_ATTRIBUTES = "type enum_list decimals length max_exc max_inc " \
+                        "max_len min_exc min_inc min_len pattern total_digits"
+_AttrRestriction = namedtuple('_AttrRestriction', _ATTR_REST_ATTRIBUTES)
+"""
+This ``namedtuple`` represents a single attribute's value restrictions.
+For more information about restrictions refer to `W3Schools`_.
 
-ORDER_INDICATOR_ATTRIBUTES = 'type element_list max_occ min_occ'
-OrderIndicator = namedtuple('OrderIndicator', ORDER_INDICATOR_ATTRIBUTES)
+.. _W3Schools: https://www.w3schools.com/xml/schema_facets.asp
 
-ChildElement = namedtuple('ChildElement', 'tag max_occ min_occ')
+Attributes:
+    type (str): A string containing all restriction types separated by a
+        single whitespace. Example: ``'max_length min_length '``
+    enum_list (list(_AttrRestElement)): A list of possible values for this
+        attribute.
+
+Warning:
+    Since none of the other restriction types occur in the actual schemas
+    all other attributes are always set to :py:class:`None`.
+"""
+
+_AttrRestElement = namedtuple('_AttrRestElement', 'value doc')
+"""
+This ``namedtuple`` represents a single value for a restriction.
+
+Attributes:
+    value (str): The string containing the value.
+    doc (str): The schema documentation for this value.
+"""
+
+_ORDER_INDICATOR_ATTRIBUTES = 'type element_list max_occ min_occ'
+_OrderIndicator = namedtuple('_OrderIndicator', _ORDER_INDICATOR_ATTRIBUTES)
+"""
+This ``namedtuple`` represents an order indicator in the element's schema.
+For more information about order indicators refer to `W3Schools`_.
+
+.. _W3Schools: https://www.w3schools.com/xml/schema_facets.asp
+
+Attributes:
+    type (str): Either ``'sequence'``, ``'choice'`` or ``'all'``.
+    element_list (list): A list of :py:class:`_OrderIndicator` and
+        :py:class:`_ChildElement` that translates an order of valid children.
+    max_occ (int): The maximum number of times this order can occur in a row.
+    min_occ (int): The minimum number of times this order can occur in a row.
+"""
+
+_ChildElement = namedtuple('_ChildElement', 'tag max_occ min_occ')
+"""
+This ``namedtuple`` represents a valid child of an element.
+
+Attributes:
+    tag (str): The tag of the possible child.
+    max_occ (int): The maximum number of times this child can occur in a row.
+    min_occ (int): The minimum number of times this child can occur in a row.
+"""
 
 
 class FomodElement(etree.ElementBase):
     """
     The base class for all FOMOD elements. This, along with the lxml API,
     serves as the low-level API for pyfomod.
+
+    Attributes:
+        _schema (lxml.etree._Element): The schema this element belongs to.
+        _schema_element (lxml.etree._Element): The element in the schema this
+            element corresponds to.
+        _schema_type (lxml.etree._Element): The type that corresponds to
+            `_schema_element`. Usually this will be a *complexType* but can be
+            the same as `_schema_element` if it's a simple element.
     """
 
     @staticmethod
@@ -54,27 +119,31 @@ class FomodElement(etree.ElementBase):
     @property
     def max_occurences(self):
         """
-        Returns the maximum times this element can be repeated or
-        *None* if there is no limit.
+        int or None:
+            Returns the maximum times this element can be
+            repeated or ``None`` if there is no limit.
         """
         return self._element_get_max_occurs(self._schema_element)
 
     @property
     def min_occurences(self):
         """
-        Returns the minimum times this element has to be repeated.
+        int:
+            Returns the minimum times this element has to be repeated.
         """
         return int(self._schema_element.get('minOccurs', 1))
 
     @property
     def type(self):
         """
-        The text type of this element. None if no text is allowed.
+        str or None:
+            The text type of this element. :py:class:`None` if no text is
+            allowed.
         """
         if self._schema_element is self._schema_type:
             return self._schema_type.get('type')[3:]
 
-        nsmap = '{' + self.schema.nsmap['xs'] + '}'
+        nsmap = '{' + self._schema.nsmap['xs'] + '}'
         content_exp = "{}simpleContent".format(nsmap)
         content = self._schema_type.find(content_exp)
 
@@ -82,7 +151,7 @@ class FomodElement(etree.ElementBase):
             return None
 
         type_exp = "xs:extension | xs:restriction"
-        base_elem = content.xpath(type_exp, namespaces=self.schema.nsmap)[0]
+        base_elem = content.xpath(type_exp, namespaces=self._schema.nsmap)[0]
         return base_elem.get('base')[3:]
 
     def _setup(self, schema):
@@ -93,7 +162,7 @@ class FomodElement(etree.ElementBase):
         # pylint: disable=attribute-defined-outside-init
 
         # the schema this element belongs to
-        self.schema = schema
+        self._schema = schema
 
         # the element that holds minOccurs, etc.
         self._schema_element = None
@@ -105,9 +174,20 @@ class FomodElement(etree.ElementBase):
     @staticmethod
     def compare(elem1, elem2, recursive=False):
         """
-        Compares *elem1* with *elem2*.
+        Compares `elem1` with `elem2`.
 
-        Returns a boolean.
+        Args:
+            elem1 (FomodElement): The first element to compare.
+            elem2 (FomodElement): The second element to compare.
+            recursive (bool, optional): If True, will recursively
+                evaluate children of the elements to compare.
+
+        Returns:
+            bool: True if the elements are equivalent, False otherwise.
+
+        Note:
+            Even though the argument types are described as
+            :py:class:`FomodElement` any ``lxml.etree._Element`` can be used.
         """
         if (elem1.tag != elem2.tag or
                 elem1.text != elem2.text or
@@ -138,15 +218,15 @@ class FomodElement(etree.ElementBase):
     def _lookup_element(self):
         """
         Looks up the corresponding element/complexType in the corresponding
-        schema. Serves as base for all otther lookups.
+        schema. Serves as base for all other lookups.
         """
         ancestor_list = list(self.iterancestors())[::-1]
         ancestor_list.append(self)
-        nsmap = '{' + self.schema.nsmap['xs'] + '}'
+        nsmap = '{' + self._schema.nsmap['xs'] + '}'
 
         # the current element in schema
         # in most cases it will actually be a complexType
-        current_element = self.schema
+        current_element = self._schema
 
         # the holder element will always be an actual element
         # it will contain tag, minOccurs, maxOccurs, etc.
@@ -164,16 +244,17 @@ class FomodElement(etree.ElementBase):
                 group_elem = current_element.find('{}group'.format(nsmap))
                 if group_elem is not None:
                     first = [self._get_order_from_group(group_elem,
-                                                        self.schema)]
+                                                        self._schema)]
                 else:
+                    namespaces = self._schema.nsmap
                     first = current_element.xpath(ord_exp,
-                                                  namespaces=self.schema.nsmap)
+                                                  namespaces=namespaces)
 
                 # check for order tags
                 while first:
                     temp = first
                     first = first[0].xpath(ord_exp,
-                                           namespaces=self.schema.nsmap)
+                                           namespaces=self._schema.nsmap)
 
                 holder_element = temp[0].find(xpath_exp)
 
@@ -193,7 +274,7 @@ class FomodElement(etree.ElementBase):
                 custom_type = holder_element.get('type')
                 complx_exp = '{}complexType[@name=\"{}\"]'.format(nsmap,
                                                                   custom_type)
-                current_element = self.schema.find(complx_exp)
+                current_element = self._schema.find(complx_exp)
 
         # pylint: disable=attribute-defined-outside-init
         self._schema_element = holder_element
@@ -201,15 +282,20 @@ class FomodElement(etree.ElementBase):
 
     def valid_attributes(self):
         """
-        Returns a list of **Attribute** named tuples.
-
         Gets all possible attributes of this element
-        along with some extra info in the named tuple.
+        along with some extra info in the
+        :py:class:`namedtuple <collections.namedtuple>`.
+
+        Returns:
+            list(_Attribute):
+                A list of all possible attributes
+                this element can have. For more info refer to
+                :py:class:`_Attribute`.
         """
         if None in (self._schema_element, self._schema_type):
             self._lookup_element()
 
-        nsmap = '{' + self.schema.nsmap['xs'] + '}'
+        nsmap = '{' + self._schema.nsmap['xs'] + '}'
         result_list = []
 
         attr_list = self._schema_type.findall("{}attribute".format(nsmap))
@@ -219,7 +305,7 @@ class FomodElement(etree.ElementBase):
             attr_exp = "xs:simpleContent/xs:extension/xs:attribute | " \
                        "xs:simpleContent/xs:restriction/xs:attribute"
             attr_list = self._schema_type.xpath(attr_exp,
-                                                namespaces=self.schema.nsmap)
+                                                namespaces=self._schema.nsmap)
 
         for attr in attr_list:
             name = attr.get('name')
@@ -254,7 +340,7 @@ class FomodElement(etree.ElementBase):
                     type_exp = '{}simpleType[@name=\"{}\"]'.format(nsmap,
                                                                    attr_type)
                     rest_exp = '{}/{}restriction'.format(type_exp, nsmap)
-                    restriction_element = self.schema.find(rest_exp)
+                    restriction_element = self._schema.find(rest_exp)
 
                 attr_type = restriction_element.get('base')[3:]
                 rest_type = ''
@@ -280,7 +366,7 @@ class FomodElement(etree.ElementBase):
                     if doc_child_elem is not None:
                         doc_child = doc_child_elem.text
 
-                    rest_tuple = AttrRestElement(value, doc_child)
+                    rest_tuple = _AttrRestElement(value, doc_child)
 
                     if child.tag == '{}enumeration'.format(nsmap):
                         if 'enumeration' not in rest_type:
@@ -341,13 +427,13 @@ class FomodElement(etree.ElementBase):
                 #                               length, max_exc, max_inc,
                 #                               max_len, min_exc, min_inc,
                 #                               min_len, pattern, total_digits)
-                restriction = AttrRestriction(rest_type, enum_list, None,
-                                              None, None, None,
-                                              None, None, None,
-                                              None, None, None)
+                restriction = _AttrRestriction(rest_type, enum_list, None,
+                                               None, None, None,
+                                               None, None, None,
+                                               None, None, None)
 
-            result_list.append(Attribute(name, doc, default, attr_type,
-                                         use, restriction))
+            result_list.append(_Attribute(name, doc, default, attr_type,
+                                          use, restriction))
 
         return result_list
 
@@ -356,7 +442,7 @@ class FomodElement(etree.ElementBase):
         """
         Parses the *ord_elem* order indicator.
         Needs to be separate from the main method to be recurrent.
-        Returns an OrderIndicator named tuple for the *ord_elem*.
+        Returns an _OrderIndicator named tuple for the *ord_elem*.
         """
         child_list = []
         child_exp = 'xs:element | xs:all | xs:sequence | xs:choice'
@@ -366,24 +452,29 @@ class FomodElement(etree.ElementBase):
             child_tuple = None
             if child.tag == '{}element'.format(nsmap):
                 child_max_occ = cls._element_get_max_occurs(child)
-                child_tuple = ChildElement(child.get('name'),
-                                           child_max_occ,
-                                           int(child.get('minOccurs', 1)))
+                child_tuple = _ChildElement(child.get('name'),
+                                            child_max_occ,
+                                            int(child.get('minOccurs', 1)))
             else:
                 child_tuple = cls._valid_children_parse_order(child)
             child_list.append(child_tuple)
 
-        return OrderIndicator(etree.QName(ord_elem).localname, child_list,
-                              cls._element_get_max_occurs(ord_elem),
-                              int(ord_elem.get('minOccurs', 1)))
+        return _OrderIndicator(etree.QName(ord_elem).localname, child_list,
+                               cls._element_get_max_occurs(ord_elem),
+                               int(ord_elem.get('minOccurs', 1)))
 
     def valid_children(self):
         """
         Gets all the possible, valid children for this element.
 
-        Returns an OrderIndicator namedtuple.
+        Returns:
+            _OrderIndicator or None:
+                This :py:class:`namedtuple <collections.namedtuple>` contains
+                the valid children for this element. For more information on
+                its structure refer to :py:class:`_OrderIndicator`.
+                `None` if this element has no valid children.
         """
-        nsmap = '{' + self.schema.nsmap['xs'] + '}'
+        nsmap = '{' + self._schema.nsmap['xs'] + '}'
 
         # if it's a simple element, no children
         if self.compare(self._schema_type, self._schema_element, True):
@@ -397,10 +488,10 @@ class FomodElement(etree.ElementBase):
 
         first_exp = 'xs:group | xs:all | xs:sequence | xs:choice'
         first = self._schema_type.xpath(first_exp,
-                                        namespaces=self.schema.nsmap)[0]
+                                        namespaces=self._schema.nsmap)[0]
 
         if first.tag == '{}group'.format(nsmap):
-            first = self._get_order_from_group(first, self.schema)
+            first = self._get_order_from_group(first, self._schema)
 
         if etree.QName(first).localname in order_indicators:
             initial_ord = self._valid_children_parse_order(first)

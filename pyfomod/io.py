@@ -21,19 +21,25 @@ import os
 
 def get_installer_files(search_path):
     """
-    Returns a tuple of (info.xml, ModuleConfig.xml) as paths.
-    `search_path` is the path to search for these files at.
-    `search_path` must point to a folder.
+    Searches and returns the installer files from a package or sub path.
 
-    Both a subfolder named *fomod* in the `search_path` and
-    `search_path` itself being the *fomod* folder are supported.
-    Priority is given to *fomod* subfolder.
-    `search_path` examples:
+    Args:
+        search_path (str): The path to search for these files at.
+            `search_path` must point to a folder.
 
-    * `folder/somefolder/` - *somefolder* contains a *fomod* subfolder;
-    * `folder/somefolder/fomod`.
+            Both a subfolder named *fomod* in the `search_path` and
+            `search_path` itself being the *fomod* folder are supported.
+            Priority is given to *fomod* subfolder.
+            `search_path`. Examples:
 
-    Raises IOError if there are any issues with finding files or folder.
+            * `folder/somefolder/` - *somefolder* contains a *fomod* subfolder;
+            * `folder/somefolder/fomod`.
+
+    Returns:
+        tuple(str, str): Paths to info.xml and ModuleConfig.xml, respectively.
+
+    Raises:
+        IOError: If there are issues with finding files or folder.
     """
 
     # normalize path to get rid of trailing stuff and properly set slashes

@@ -34,15 +34,21 @@ CONF_SCHEMA = etree.XMLSchema(CONF_SCHEMA_TREE)
 
 def validate_installer(installer):
     """
-    Returns a boolean, True if the installer is valid, False if not.
+    Checks if the `installer` is valid.
 
-    Accepts as arguments a parsed Root object, a tuple or list of
-    two parsed lxml trees (info and config, in that order) or a valid
-    path to an installer. The path follows the same rules as when given
-    to get_installer_files.
+    Args:
+        installer:
+            Accepts as arguments a parsed Root object, a tuple or list of
+            two parsed lxml trees (info and config, in that order) or a valid
+            path to an installer. The path follows the same rules as when given
+            to get_installer_files.
 
-    Raises ValueError if the argument passed does not comply with the
-    rules above.
+    Returns:
+        bool: True if the installer is valid, False if not.
+
+    Raises:
+        ValueError: If the argument passed does not comply with the
+            rules above.
     """
     # the variable to hold the info and config trees
     installer_trees = None
@@ -82,7 +88,7 @@ class ErrorChecker(object):
     """
     Base class for error checking.
     Used by *check_for_errors* function.
-    Subclasses should fill in all fields.
+    Subclasses should fill in all relevant fields.
     """
 
     @staticmethod
@@ -354,15 +360,19 @@ ERROR_LIST.append(FlagValueMismatchError)
 def check_for_errors(installer):
     """
     Call this function to check for errors.
+    Refer to ErrorChecker subclasses for more information.
 
-    Accepts a Root object, a tuple/list of
-    parsed lxml trees as (info, config) and
-    a path to the package. Error checks that
-    require a package path will only be checked
-    if a package path is given as the argument.
+    Args:
+        installer:
+            Accepts a Root object, a tuple/list of
+            parsed lxml trees as (info, config) and
+            a path to the package. Error checks that
+            require a package path will only be checked
+            if a package path is given as the argument.
 
-    Returns a list of tuples as:
-    (lines, title, message, tag)
+    Returns:
+        list(tuple):
+            a list of tuples as: (lines, title, message, tag)
     """
 
     # the list to hold the final tuples

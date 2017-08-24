@@ -105,13 +105,13 @@ class Test_FomodElement:
     def test_setup_info(self, simple_parse):
         for elem in simple_parse[0].iter(tag=etree.Element):
             elem._setup(validation.INFO_SCHEMA_TREE)
-            assert parser.FomodElement.compare(elem.schema,
+            assert parser.FomodElement.compare(elem._schema,
                                                validation.INFO_SCHEMA_TREE)
 
     def test_setup_config(self, simple_parse):
         for elem in simple_parse[1].iter(tag=etree.Element):
             elem._setup(validation.CONF_SCHEMA_TREE)
-            assert parser.FomodElement.compare(elem.schema,
+            assert parser.FomodElement.compare(elem._schema,
                                                validation.CONF_SCHEMA_TREE)
 
     def test_get_order_from_group(self):
@@ -166,50 +166,50 @@ class Test_FomodElement:
 
     def test_valid_attributes_simple_string(self, simple_parse):
         # a simple string attribute
-        machine_version_attr = parser.Attribute("MachineVersion", None, None,
-                                                "string", "optional", None)
+        machine_version_attr = parser._Attribute("MachineVersion", None, None,
+                                                 "string", "optional", None)
         version_elem = simple_parse[0][5]
         version_elem._setup(info_schema)
         assert version_elem.valid_attributes() == [machine_version_attr]
 
     def test_valid_attributes_restriction(self, simple_parse):
         # fileDependency element (enumeration)
-        state_rest_list = [parser.AttrRestElement('Missing',
-                                                  "Indicates the mod file is"
-                                                  " not installed."),
-                           parser.AttrRestElement('Inactive', "Indicates the"
-                                                  " mod file is installed, "
-                                                  "but not active."),
-                           parser.AttrRestElement('Active', "Indicates the "
-                                                  "mod file is installed and"
-                                                  " active.")]
-        state_restrictions = parser.AttrRestriction('enumeration ',
-                                                    state_rest_list,
-                                                    None, None, None, None,
-                                                    None, None, None, None,
-                                                    None, None)
-        file_dep_attrs = [parser.Attribute("file", "The file of the mod upon "
-                                           "which a the plugin depends.",
-                                           None, "string", "required", None),
-                          parser.Attribute("state", "The state of the mod "
-                                           "file.", None, "string", "required",
-                                           state_restrictions)]
+        state_rest_list = [parser._AttrRestElement('Missing',
+                                                   "Indicates the mod file is"
+                                                   " not installed."),
+                           parser._AttrRestElement('Inactive', "Indicates the"
+                                                   " mod file is installed, "
+                                                   "but not active."),
+                           parser._AttrRestElement('Active', "Indicates the "
+                                                   "mod file is installed and"
+                                                   " active.")]
+        state_restrictions = parser._AttrRestriction('enumeration ',
+                                                     state_rest_list,
+                                                     None, None, None, None,
+                                                     None, None, None, None,
+                                                     None, None)
+        file_dep_attrs = [parser._Attribute("file", "The file of the mod upon "
+                                            "which a the plugin depends.",
+                                            None, "string", "required", None),
+                          parser._Attribute("state", "The state of the mod "
+                                            "file.", None, "string",
+                                            "required", state_restrictions)]
         file_dep_elem = simple_parse[1][2][1]
         file_dep_elem._setup(conf_schema)
         assert file_dep_elem.valid_attributes() == file_dep_attrs
 
     def composite_dependency_valid_children(self):
-        file_dep_child = parser.ChildElement('fileDependency', None, 1)
-        flag_dep_child = parser.ChildElement('flagDependency', None, 1)
-        game_dep_child = parser.ChildElement('gameDependency', 1, 0)
-        fomm_dep_child = parser.ChildElement('fommDependency', 1, 0)
-        dep_child = parser.ChildElement('dependencies', 1, 1)
-        choice_ord = parser.OrderIndicator('choice',
-                                           [file_dep_child, flag_dep_child,
-                                            game_dep_child, fomm_dep_child,
-                                            dep_child],
-                                           None, 1)
-        return parser.OrderIndicator('sequence', [choice_ord], 1, 1)
+        file_dep_child = parser._ChildElement('fileDependency', None, 1)
+        flag_dep_child = parser._ChildElement('flagDependency', None, 1)
+        game_dep_child = parser._ChildElement('gameDependency', 1, 0)
+        fomm_dep_child = parser._ChildElement('fommDependency', 1, 0)
+        dep_child = parser._ChildElement('dependencies', 1, 1)
+        choice_ord = parser._OrderIndicator('choice',
+                                            [file_dep_child, flag_dep_child,
+                                             game_dep_child, fomm_dep_child,
+                                             dep_child],
+                                            None, 1)
+        return parser._OrderIndicator('sequence', [choice_ord], 1, 1)
 
     def test_valid_children_parse_order(self):
         parse_order = parser.FomodElement._valid_children_parse_order
