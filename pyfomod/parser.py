@@ -463,10 +463,63 @@ class FomodElement(etree.ElementBase):
 
         return result_list
 
+    def _find_valid_attribute(self, name):
         """
+        Checks if possible attribute name is possible within the schema.
+        Returns the _Attribute namedtuple for the possible attribute.
+        If there is no possible attribute, raises ValueError.
         """
+        valid_attrs = self.valid_attributes()
+        possible_attr = None
+        for attr in valid_attrs:
+            if attr.name == name:
+                possible_attr = attr
+                break
 
+        if possible_attr is None:
+            raise ValueError("No valid attribute with name {}".format(name))
+        else:
+            return possible_attr
 
+    def get_attribute(self, name):
+        """
+        Args:
+            name (str): The attribute's name.
+
+        Returns:
+            The attribute's value.
+
+        Raises:
+            ValueError: If the attribute is not allowed by the schema.
+        """
+        existing_attr = self.get(name)
+        if existing_attr is not None:
+            return existing_attr
+
+        default_attr = self._find_valid_attribute(name)
+        if default_attr.default is not None:
+            return default_attr.default
+        return ""
+
+    def set_attribute(self, name, value):
+        """
+        Args:
+            name (str): The attribute's name.
+            value (str): The attribute's value.
+
+        Raises:
+            ValueError: If the attribute is not allowed by the schema or
+                if the value is not allowed by the attribute's restrictions.
+        """
+        possible_attr = self._find_valid_attribute(name)
+        if possible_attr.restriction is not None:
+            if 'enumeration' in possible_attr.restriction.type:
+                enum_list = possible_attr.restriction.enum_list
+                if value not in [enum.value for enum in enum_list]:
+                    raise ValueError("{} is not allowed by this "
+                                     "attribute's restrictions.".format(value))
+
+        self.set(name, value)
 
     def valid_children(self):
         """

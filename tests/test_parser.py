@@ -1,7 +1,7 @@
 from lxml import etree
 
+import pytest
 from pyfomod import parser, validation
-
 
 info_schema = validation.INFO_SCHEMA_TREE
 conf_schema = validation.CONF_SCHEMA_TREE
@@ -197,6 +197,47 @@ class Test_FomodElement:
         file_dep_elem = simple_parse[1][2][1]
         file_dep_elem._setup(conf_schema)
         assert file_dep_elem.valid_attributes() == file_dep_attrs
+
+    def test_find_valid_attribute_normal(self, simple_parse):
+        version = simple_parse[0][5]
+        version._setup(info_schema)
+        version._lookup_element()
+        attr = parser._Attribute('MachineVersion', None, None,
+                                 'string', 'optional', None)
+        assert version._find_valid_attribute('MachineVersion') == attr
+
+    def test_find_valid_attribute_valueerror(self, simple_parse):
+        name = simple_parse[0][1]
+        name._setup(info_schema)
+        name._lookup_element()
+        with pytest.raises(ValueError):
+            name._find_valid_attribute('anyAttribute')
+
+    def test_get_attribute_existing(self, simple_parse):
+        mod_dep = simple_parse[1][2]
+        mod_dep._setup(conf_schema)
+        mod_dep._lookup_element()
+        assert mod_dep.get_attribute('operator') == 'And'
+
+    def test_get_attribute_default(self, simple_parse):
+        name = simple_parse[1][0]
+        name._setup(conf_schema)
+        name._lookup_element()
+        assert name.get_attribute('position') == 'Left'
+
+    def test_set_attribute_normal(self, conf_tree):
+        name = conf_tree[0]
+        name._setup(conf_schema)
+        name._lookup_element()
+        name.set_attribute('position', 'Right')
+        assert name.get_attribute('position') == 'Right'
+
+    def test_set_attribute_enum_restriction(self, conf_tree):
+        name = conf_tree[0]
+        name._setup(conf_schema)
+        name._lookup_element()
+        with pytest.raises(ValueError):
+            name.set_attribute('position', 'Top')
 
     def composite_dependency_valid_children(self):
         file_dep_child = parser._ChildElement('fileDependency', None, 1)
