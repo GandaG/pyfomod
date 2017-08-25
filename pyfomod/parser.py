@@ -106,16 +106,6 @@ class FomodElement(etree.ElementBase):
             the same as `_schema_element` if it's a simple element.
     """
 
-    @staticmethod
-    def _element_get_max_occurs(element):
-        """
-        Returns maxOccurs for the specified element. None if unbounded.
-        """
-        max_occ = element.get('maxOccurs', 1)
-        if max_occ == 'unbounded':
-            return None
-        return int(max_occ)
-
     @property
     def max_occurences(self):
         """
@@ -154,22 +144,15 @@ class FomodElement(etree.ElementBase):
         base_elem = content.xpath(type_exp, namespaces=self._schema.nsmap)[0]
         return base_elem.get('base')[3:]
 
-    def _setup(self, schema):
+    @staticmethod
+    def _element_get_max_occurs(element):
         """
-        Used to setup the class, instead of an __init__
-        since lxml doesn't let us use it.
+        Returns maxOccurs for the specified element. None if unbounded.
         """
-        # pylint: disable=attribute-defined-outside-init
-
-        # the schema this element belongs to
-        self._schema = schema
-
-        # the element that holds minOccurs, etc.
-        self._schema_element = None
-
-        # the type of this element (can be the same as the schema_element)
-        # holds info about attributes, children, etc.
-        self._schema_type = None
+        max_occ = element.get('maxOccurs', 1)
+        if max_occ == 'unbounded':
+            return None
+        return int(max_occ)
 
     @staticmethod
     def compare(elem1, elem2, recursive=False):
@@ -214,6 +197,49 @@ class FomodElement(etree.ElementBase):
         group_ref = root_elem.find(group_ref_exp)
         return group_ref.xpath(ord_exp,
                                namespaces=root_elem.nsmap)[0]
+
+    @classmethod
+    def _valid_children_parse_order(cls, ord_elem):
+        """
+        Parses the *ord_elem* order indicator.
+        Needs to be separate from the main method to be recurrent.
+        Returns an _OrderIndicator named tuple for the *ord_elem*.
+        """
+        child_list = []
+        child_exp = 'xs:element | xs:all | xs:sequence | xs:choice'
+        nsmap = '{' + ord_elem.nsmap['xs'] + '}'
+
+        for child in ord_elem.xpath(child_exp, namespaces=ord_elem.nsmap):
+            child_tuple = None
+            if child.tag == '{}element'.format(nsmap):
+                child_max_occ = cls._element_get_max_occurs(child)
+                child_tuple = _ChildElement(child.get('name'),
+                                            child_max_occ,
+                                            int(child.get('minOccurs', 1)))
+            else:
+                child_tuple = cls._valid_children_parse_order(child)
+            child_list.append(child_tuple)
+
+        return _OrderIndicator(etree.QName(ord_elem).localname, child_list,
+                               cls._element_get_max_occurs(ord_elem),
+                               int(ord_elem.get('minOccurs', 1)))
+
+    def _setup(self, schema):
+        """
+        Used to setup the class, instead of an __init__
+        since lxml doesn't let us use it.
+        """
+        # pylint: disable=attribute-defined-outside-init
+
+        # the schema this element belongs to
+        self._schema = schema
+
+        # the element that holds minOccurs, etc.
+        self._schema_element = None
+
+        # the type of this element (can be the same as the schema_element)
+        # holds info about attributes, children, etc.
+        self._schema_type = None
 
     def _lookup_element(self):
         """
@@ -437,31 +463,10 @@ class FomodElement(etree.ElementBase):
 
         return result_list
 
-    @classmethod
-    def _valid_children_parse_order(cls, ord_elem):
         """
-        Parses the *ord_elem* order indicator.
-        Needs to be separate from the main method to be recurrent.
-        Returns an _OrderIndicator named tuple for the *ord_elem*.
         """
-        child_list = []
-        child_exp = 'xs:element | xs:all | xs:sequence | xs:choice'
-        nsmap = '{' + ord_elem.nsmap['xs'] + '}'
 
-        for child in ord_elem.xpath(child_exp, namespaces=ord_elem.nsmap):
-            child_tuple = None
-            if child.tag == '{}element'.format(nsmap):
-                child_max_occ = cls._element_get_max_occurs(child)
-                child_tuple = _ChildElement(child.get('name'),
-                                            child_max_occ,
-                                            int(child.get('minOccurs', 1)))
-            else:
-                child_tuple = cls._valid_children_parse_order(child)
-            child_list.append(child_tuple)
 
-        return _OrderIndicator(etree.QName(ord_elem).localname, child_list,
-                               cls._element_get_max_occurs(ord_elem),
-                               int(ord_elem.get('minOccurs', 1)))
 
     def valid_children(self):
         """
