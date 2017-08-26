@@ -144,6 +144,27 @@ class FomodElement(etree.ElementBase):
         base_elem = content.xpath(type_exp, namespaces=self._schema.nsmap)[0]
         return base_elem.get('base')[3:]
 
+    @property
+    def comment(self):
+        """
+        str or None:
+            The text of this element' comment.
+            If no comment exists when setting new text, a comment is created.
+        """
+        if self._comment is None:
+            return None
+        return self._comment.text
+
+    @comment.setter
+    def comment(self, text):
+        if self._comment is None:
+            self.addprevious(etree.Comment(text))
+
+            # pylint: disable=attribute-defined-outside-init
+            self._comment = self.getprevious()
+        else:
+            self._comment.text = text
+
     @staticmethod
     def _element_get_max_occurs(element):
         """
@@ -240,6 +261,13 @@ class FomodElement(etree.ElementBase):
         # the type of this element (can be the same as the schema_element)
         # holds info about attributes, children, etc.
         self._schema_type = None
+
+        # the comment associated with this element.
+        # this comment always exists before the element.
+        self._comment = None
+        if (self.getprevious() is not None and
+                self.getprevious().tag is etree.Comment):
+            self._comment = self.getprevious()
 
     def _lookup_element(self):
         """

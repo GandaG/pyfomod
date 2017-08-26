@@ -62,6 +62,30 @@ class Test_FomodElement:
         version._lookup_element()
         assert version.type == 'string'
 
+    def test_comment_get_none(self, simple_parse):
+        name = simple_parse[1][0]
+        name._setup(conf_schema)
+        assert name.comment is None
+
+    def test_comment_get_normal(self, simple_parse):
+        name = simple_parse[0][1]
+        name._setup(info_schema)
+        assert name.comment == " The name of the mod "
+
+    def test_comment_set_none(self, conf_tree):
+        name = conf_tree[0]
+        name._setup(conf_schema)
+        assert name._comment is None
+        name.comment = "comment"
+        assert name.comment == "comment"
+
+    def test_comment_set_normal(self, info_tree):
+        name = info_tree[1]
+        name._setup(info_schema)
+        assert name.comment == " The name of the mod "
+        name.comment = "comment"
+        assert name.comment == "comment"
+
     def std_cmp_elem(self):
         return etree.fromstring("<a boo=\"2\" goo=\"5\">text<b/>tail</a>",
                                 parser=parser.FOMOD_PARSER)
@@ -102,17 +126,15 @@ class Test_FomodElement:
                                     parser=parser.FOMOD_PARSER)
         assert not elem_cld.compare(self.std_cmp_elem(), elem_cld, True)
 
-    def test_setup_info(self, simple_parse):
+    def test_setup_schema(self, simple_parse):
         for elem in simple_parse[0].iter(tag=etree.Element):
-            elem._setup(validation.INFO_SCHEMA_TREE)
-            assert parser.FomodElement.compare(elem._schema,
-                                               validation.INFO_SCHEMA_TREE)
+            elem._setup(info_schema)
+            assert parser.FomodElement.compare(elem._schema, info_schema)
 
-    def test_setup_config(self, simple_parse):
-        for elem in simple_parse[1].iter(tag=etree.Element):
-            elem._setup(validation.CONF_SCHEMA_TREE)
-            assert parser.FomodElement.compare(elem._schema,
-                                               validation.CONF_SCHEMA_TREE)
+    def test_setup_comment(self, simple_parse):
+        name = simple_parse[0][1]
+        name._setup(info_schema)
+        assert parser.FomodElement.compare(name._comment, simple_parse[0][0])
 
     def test_get_order_from_group(self):
         group_elem = conf_schema[4][1]
