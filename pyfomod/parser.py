@@ -147,12 +147,12 @@ class FomodElement(etree.ElementBase):
     @property
     def comment(self):
         """
-        str or None:
+        str:
             The text of this element' comment.
             If no comment exists when setting new text, a comment is created.
         """
         if self._comment is None:
-            return None
+            return ""
         return self._comment.text
 
     @comment.setter

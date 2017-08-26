@@ -65,7 +65,7 @@ class Test_FomodElement:
     def test_comment_get_none(self, simple_parse):
         name = simple_parse[1][0]
         name._setup(conf_schema)
-        assert name.comment is None
+        assert name.comment == ""
 
     def test_comment_get_normal(self, simple_parse):
         name = simple_parse[0][1]
