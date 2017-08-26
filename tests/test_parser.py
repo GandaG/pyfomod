@@ -1,3 +1,5 @@
+from copy import deepcopy
+
 from lxml import etree
 
 import pytest
@@ -85,6 +87,28 @@ class Test_FomodElement:
         assert name.comment == " The name of the mod "
         name.comment = "comment"
         assert name.comment == "comment"
+
+    def test_doc_normal(self, simple_parse):
+        config = simple_parse[1]
+        config._setup(conf_schema)
+        config._lookup_element()
+        assert config.doc == "The main element containing the " \
+            "module configuration info."
+
+    def test_doc_none(self, simple_parse):
+        config = simple_parse[1]
+        config_schema = deepcopy(conf_schema)
+        config._setup(config_schema)
+        config._lookup_element()
+        config._schema_element.remove(config._schema_element[0])
+        assert config.doc == ""
+
+    def test_get_schema_doc_normal(self):
+        doc = info_schema[0][0][0].text
+        assert parser.FomodElement._get_schema_doc(info_schema[0]) == doc
+
+    def test_get_schema_doc_none(self):
+        assert parser.FomodElement._get_schema_doc(info_schema) is None
 
     def std_cmp_elem(self):
         return etree.fromstring("<a boo=\"2\" goo=\"5\">text<b/>tail</a>",

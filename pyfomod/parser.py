@@ -165,6 +165,18 @@ class FomodElement(etree.ElementBase):
         else:
             self._comment.text = text
 
+    @property
+    def doc(self):
+        """
+        str:
+            Returns the documentation text associated with this element
+            in the schema.
+        """
+        doc = self._get_schema_doc(self._schema_element)
+        if doc is None:
+            return ""
+        return doc
+
     @staticmethod
     def _element_get_max_occurs(element):
         """
@@ -174,6 +186,29 @@ class FomodElement(etree.ElementBase):
         if max_occ == 'unbounded':
             return None
         return int(max_occ)
+
+    @staticmethod
+    def _get_schema_doc(schema_elem):
+        """
+        Returns the text of the of the annotation/documentation element
+        below the `schema_elem`. Example::
+
+            <`schema_elem`>
+                <annotation>
+                    <documentation>
+                        This method returns this.
+                    </documentation>
+                </annotation>
+            </`schema_elem`>
+
+        If no such structure could be found, returns ``None``.
+        """
+        nsmap = '{' + schema_elem.nsmap['xs'] + '}'
+        doc_elem = schema_elem.find("{0}annotation/"
+                                    "{0}documentation".format(nsmap))
+        if doc_elem is not None:
+            return doc_elem.text
+        return None
 
     @staticmethod
     def compare(elem1, elem2, recursive=False):
@@ -364,11 +399,7 @@ class FomodElement(etree.ElementBase):
         for attr in attr_list:
             name = attr.get('name')
 
-            doc_elem = attr.find("{0}annotation/"
-                                 "{0}documentation".format(nsmap))
-            doc = None
-            if doc_elem is not None:
-                doc = doc_elem.text
+            doc = self._get_schema_doc(attr)
 
             default = attr.get('default')
 
@@ -411,14 +442,8 @@ class FomodElement(etree.ElementBase):
                 # total_digits = None
 
                 for child in restriction_element:
-                    doc_child = None
+                    doc_child = self._get_schema_doc(child)
                     value = child.get('value')
-
-                    doc_child_elem_exp = "{0}annotation/" \
-                                         "{0}documentation".format(nsmap)
-                    doc_child_elem = child.find(doc_child_elem_exp)
-                    if doc_child_elem is not None:
-                        doc_child = doc_child_elem.text
 
                     rest_tuple = _AttrRestElement(value, doc_child)
 
