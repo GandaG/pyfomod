@@ -340,12 +340,11 @@ class FomodElement(etree.ElementBase):
                                                   namespaces=namespaces)
 
                 # check for order tags
-                while first:
+                while holder_element is None and first:
                     temp = first
+                    holder_element = temp[0].find(xpath_exp)
                     first = first[0].xpath(ord_exp,
                                            namespaces=self._schema.nsmap)
-
-                holder_element = temp[0].find(xpath_exp)
 
             # a complexType that is used solely for this element
             if holder_element.get('type') is None:
