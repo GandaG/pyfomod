@@ -316,6 +316,74 @@ class Test_FomodElement:
         name._lookup_element()
         assert name.valid_children() is None
 
+    def test_find_possible_index_no_children(self):
+        info = etree.fromstring("<fomod/>",
+                                parser=parser.FOMOD_PARSER)
+        for elem in info.iter(tag=etree.Element):
+            elem._setup(info_schema)
+            elem._lookup_element()
+        assert info._find_possible_index('Name') == -1
+        assert len(info) == 0
+
+    def test_find_possible_index_none(self):
+        conf = etree.fromstring("<config><moduleName/></config>",
+                                parser=parser.FOMOD_PARSER)
+        for elem in conf.iter(tag=etree.Element):
+            elem._setup(conf_schema)
+            elem._lookup_element()
+        assert conf._find_possible_index('moduleName') is None
+        assert len(conf) == 1
+
+    def test_find_possible_index_invalid(self):
+        info = etree.fromstring("<fomod/>",
+                                parser=parser.FOMOD_PARSER)
+        for elem in info.iter(tag=etree.Element):
+            elem._setup(info_schema)
+            elem._lookup_element()
+        assert info._find_possible_index('any') is None
+        assert len(info) == 0
+
+    def test_find_possible_index_normal(self):
+        info = etree.fromstring("<fomod><Name/><Version/></fomod>",
+                                parser=parser.FOMOD_PARSER)
+        for elem in info.iter(tag=etree.Element):
+            elem._setup(info_schema)
+            elem._lookup_element()
+        assert info._find_possible_index('Author') == 1
+        assert len(info) == 2
+
+    def test_find_possible_index_fomodelement(self):
+        info = etree.fromstring("<fomod/>",
+                                parser=parser.FOMOD_PARSER)
+        name = etree.fromstring("<Name/>",
+                                parser=parser.FOMOD_PARSER)
+        info.append(name)
+        for elem in info.iter(tag=etree.Element):
+            elem._setup(info_schema)
+            elem._lookup_element()
+        info.remove(name)
+        assert info._find_possible_index(name) == -1
+        assert len(info) == 0
+
+    def test_find_possible_index_valuerror(self):
+        info = etree.fromstring("<fomod><Name/><Version/></fomod>",
+                                parser=parser.FOMOD_PARSER)
+        for elem in info.iter(tag=etree.Element):
+            elem._setup(info_schema)
+            elem._lookup_element()
+        with pytest.raises(ValueError):
+            info._find_possible_index(etree.Element('Author'))
+        assert len(info) == 2
+
+    def test_can_add_child(self):
+        info = etree.fromstring("<fomod><Name/></fomod>",
+                                parser=parser.FOMOD_PARSER)
+        for elem in info.iter(tag=etree.Element):
+            elem._setup(info_schema)
+            elem._lookup_element()
+        assert info.can_add_child('Author')
+        assert not info.can_add_child('Name')
+
 
 class Test_FomodLookup:
     def test_base_class(self, simple_parse):

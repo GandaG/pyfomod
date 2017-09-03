@@ -18,6 +18,7 @@ for the api.
 """
 
 from collections import namedtuple
+from copy import deepcopy
 
 from lxml import etree
 
@@ -607,6 +608,77 @@ class FomodElement(etree.ElementBase):
             initial_ord = self._valid_children_parse_order(first)
 
         return initial_ord
+
+    def _find_possible_index(self, child):
+        """
+        Tries to figure out if a child can be added to this element,
+        and if it can, what index it should be inserted at.
+
+        To this end, a shallow copy of this element's schema correspondence
+        and it's possible children is performed.
+        After, the same is done to this element and it's real children.
+        A test element with the child's tag is created.
+        This test element is then inserted at every possible position in the
+        copy of self (reversed order) until a valid position is found.
+        """
+        tag = ""
+        if isinstance(child, str):
+            tag = child
+        elif isinstance(child, FomodElement):
+            tag = child.tag
+        else:
+            raise ValueError("Only tags (string) and elements (FomodElement)"
+                             " are accepted as arguments.")
+
+        schema_elem = etree.Element(etree.QName(self._schema_element,
+                                                'schema'),
+                                    nsmap=self._schema_element.nsmap)
+
+        schema_type = deepcopy(self._schema_element)
+        schema_elem.append(schema_type)
+        if self._schema_element.get('type') is not None:
+            schema_type = deepcopy(self._schema_type)
+            schema_elem.append(schema_type)
+
+        if self._schema_element is not self._schema_type:
+            for elem in schema_type.iter(tag='{*}element'):
+                if elem is schema_type:
+                    continue
+                elem.attrib.pop('type', None)
+                for grandchild in elem:
+                    elem.remove(grandchild)
+
+        self_copy = etree.Element(self.tag)
+        for elem in self:
+            etree.SubElement(self_copy, elem.tag)
+
+        test_elem = etree.Element(tag)
+        schema = etree.XMLSchema(schema_elem)
+
+        self_copy.append(test_elem)
+        if schema.validate(self_copy):
+            return -1
+
+        for index in reversed(range(len(self_copy))):
+            self_copy.insert(index, test_elem)
+            if schema.validate(self_copy):
+                return index
+
+        return None
+
+    def can_add_child(self, child):
+        """
+        Checks if a given child can be possibly added to this element.
+
+        Args:
+            child (str or FomodElement): The tag or the actual child to add.
+
+        Returns:
+            bool: Whether the child can be added or not.
+        """
+        if self._find_possible_index(child) is None:
+            return False
+        return True
 
 
 class Root(FomodElement):
