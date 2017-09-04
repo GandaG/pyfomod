@@ -298,6 +298,9 @@ class FomodElement(etree.ElementBase):
         # holds info about attributes, children, etc.
         self._schema_type = None
 
+        lookup = self._lookup_element()
+        self._schema_element, self._schema_type = lookup
+
         # the comment associated with this element.
         # this comment always exists before the element.
         self._comment = None
@@ -365,9 +368,7 @@ class FomodElement(etree.ElementBase):
                                                                   custom_type)
                 current_element = self._schema.find(complx_exp)
 
-        # pylint: disable=attribute-defined-outside-init
-        self._schema_element = holder_element
-        self._schema_type = current_element
+        return holder_element, current_element
 
     def valid_attributes(self):
         """
@@ -381,9 +382,6 @@ class FomodElement(etree.ElementBase):
                 this element can have. For more info refer to
                 :py:class:`_Attribute`.
         """
-        if None in (self._schema_element, self._schema_type):
-            self._lookup_element()
-
         nsmap = '{' + self._schema.nsmap['xs'] + '}'
         result_list = []
 

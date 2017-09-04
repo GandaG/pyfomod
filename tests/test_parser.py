@@ -13,55 +13,46 @@ class Test_FomodElement:
     def test_element_get_max_occurs_normal(self, simple_parse):
         root = simple_parse[0]
         root._setup(info_schema)
-        root._lookup_element()
         assert root._element_get_max_occurs(root._schema_element) == 1
 
     def test_element_get_max_occurs_unbounded(self, simple_parse):
         file_d = simple_parse[1][2][1]
         file_d._setup(conf_schema)
-        file_d._lookup_element()
         assert file_d._element_get_max_occurs(file_d._schema_element) is None
 
     def test_max_occ_default_value(self, simple_parse):
         root = simple_parse[0]
         root._setup(info_schema)
-        root._lookup_element()
         assert root.max_occurences == 1
 
     def test_max_occ_unbounded(self, simple_parse):
         file_dep = simple_parse[1][2][1]
         file_dep._setup(conf_schema)
-        file_dep._lookup_element()
         assert file_dep.max_occurences is None
 
     def test_min_occ_default_value(self, simple_parse):
         root = simple_parse[1]
         root._setup(conf_schema)
-        root._lookup_element()
         assert root.min_occurences == 1
 
     def test_min_occ_normal_value(self, simple_parse):
         file_dep = simple_parse[1][2]
         file_dep._setup(conf_schema)
-        file_dep._lookup_element()
         assert file_dep.min_occurences == 0
 
     def test_type_none(self, simple_parse):
         root = simple_parse[0]
         root._setup(info_schema)
-        root._lookup_element()
         assert root.type is None
 
     def test_type_simple_element(self, simple_parse):
         name = simple_parse[0][1]
         name._setup(info_schema)
-        name._lookup_element()
         assert name.type == 'string'
 
     def test_type_complex_element(self, simple_parse):
         version = simple_parse[0][5]
         version._setup(info_schema)
-        version._lookup_element()
         assert version.type == 'string'
 
     def test_comment_get_none(self, simple_parse):
@@ -91,7 +82,6 @@ class Test_FomodElement:
     def test_doc_normal(self, simple_parse):
         config = simple_parse[1]
         config._setup(conf_schema)
-        config._lookup_element()
         assert config.doc == "The main element containing the " \
             "module configuration info."
 
@@ -99,7 +89,6 @@ class Test_FomodElement:
         config = simple_parse[1]
         config_schema = deepcopy(conf_schema)
         config._setup(config_schema)
-        config._lookup_element()
         config._schema_element.remove(config._schema_element[0])
         assert config.doc == ""
 
@@ -169,7 +158,6 @@ class Test_FomodElement:
     def test_lookup_element_private_complex_type(self, simple_parse):
         root = simple_parse[0]
         root._setup(info_schema)
-        root._lookup_element()
         current_lookups = (root._schema_element,
                            root._schema_type)
         assert parser.FomodElement.compare(current_lookups[0],
@@ -180,7 +168,6 @@ class Test_FomodElement:
     def test_lookup_element_simple_element(self, simple_parse):
         name = simple_parse[0][1]
         name._setup(info_schema)
-        name._lookup_element()
         current_lookups = (name._schema_element,
                            name._schema_type)
         assert parser.FomodElement.compare(current_lookups[0],
@@ -191,7 +178,6 @@ class Test_FomodElement:
     def test_lookup_element_separate_complex_type(self, simple_parse):
         config = simple_parse[1]
         config._setup(conf_schema)
-        config._lookup_element()
         current_lookups = (config._schema_element,
                            config._schema_type)
         assert parser.FomodElement.compare(current_lookups[0],
@@ -202,7 +188,6 @@ class Test_FomodElement:
     def test_lookup_element_group_order_tags(self, simple_parse):
         file_dep = simple_parse[1][2][1]
         file_dep._setup(conf_schema)
-        file_dep._lookup_element()
         current_lookups = (file_dep._schema_element,
                            file_dep._schema_type)
         assert parser.FomodElement.compare(current_lookups[0],
@@ -247,7 +232,6 @@ class Test_FomodElement:
     def test_find_valid_attribute_normal(self, simple_parse):
         version = simple_parse[0][5]
         version._setup(info_schema)
-        version._lookup_element()
         attr = parser._Attribute('MachineVersion', None, None,
                                  'string', 'optional', None)
         assert version._find_valid_attribute('MachineVersion') == attr
@@ -255,33 +239,28 @@ class Test_FomodElement:
     def test_find_valid_attribute_valueerror(self, simple_parse):
         name = simple_parse[0][1]
         name._setup(info_schema)
-        name._lookup_element()
         with pytest.raises(ValueError):
             name._find_valid_attribute('anyAttribute')
 
     def test_get_attribute_existing(self, simple_parse):
         mod_dep = simple_parse[1][2]
         mod_dep._setup(conf_schema)
-        mod_dep._lookup_element()
         assert mod_dep.get_attribute('operator') == 'And'
 
     def test_get_attribute_default(self, simple_parse):
         name = simple_parse[1][0]
         name._setup(conf_schema)
-        name._lookup_element()
         assert name.get_attribute('position') == 'Left'
 
     def test_set_attribute_normal(self, conf_tree):
         name = conf_tree[0]
         name._setup(conf_schema)
-        name._lookup_element()
         name.set_attribute('position', 'Right')
         assert name.get_attribute('position') == 'Right'
 
     def test_set_attribute_enum_restriction(self, conf_tree):
         name = conf_tree[0]
         name._setup(conf_schema)
-        name._lookup_element()
         with pytest.raises(ValueError):
             name.set_attribute('position', 'Top')
 
@@ -306,14 +285,12 @@ class Test_FomodElement:
     def test_valid_children_group_and_order(self, simple_parse):
         mod_dep = simple_parse[1][2]
         mod_dep._setup(conf_schema)
-        mod_dep._lookup_element()
         sequence_ord = self.composite_dependency_valid_children()
         assert mod_dep.valid_children() == sequence_ord
 
     def test_valid_children_none(self, simple_parse):
         name = simple_parse[0][1]
         name._setup(info_schema)
-        name._lookup_element()
         assert name.valid_children() is None
 
     def test_find_possible_index_no_children(self):
@@ -321,7 +298,6 @@ class Test_FomodElement:
                                 parser=parser.FOMOD_PARSER)
         for elem in info.iter(tag=etree.Element):
             elem._setup(info_schema)
-            elem._lookup_element()
         assert info._find_possible_index('Name') == -1
         assert len(info) == 0
 
@@ -330,7 +306,6 @@ class Test_FomodElement:
                                 parser=parser.FOMOD_PARSER)
         for elem in conf.iter(tag=etree.Element):
             elem._setup(conf_schema)
-            elem._lookup_element()
         assert conf._find_possible_index('moduleName') is None
         assert len(conf) == 1
 
@@ -339,7 +314,6 @@ class Test_FomodElement:
                                 parser=parser.FOMOD_PARSER)
         for elem in info.iter(tag=etree.Element):
             elem._setup(info_schema)
-            elem._lookup_element()
         assert info._find_possible_index('any') is None
         assert len(info) == 0
 
@@ -348,7 +322,6 @@ class Test_FomodElement:
                                 parser=parser.FOMOD_PARSER)
         for elem in info.iter(tag=etree.Element):
             elem._setup(info_schema)
-            elem._lookup_element()
         assert info._find_possible_index('Author') == 1
         assert len(info) == 2
 
@@ -360,7 +333,6 @@ class Test_FomodElement:
         info.append(name)
         for elem in info.iter(tag=etree.Element):
             elem._setup(info_schema)
-            elem._lookup_element()
         info.remove(name)
         assert info._find_possible_index(name) == -1
         assert len(info) == 0
@@ -370,7 +342,6 @@ class Test_FomodElement:
                                 parser=parser.FOMOD_PARSER)
         for elem in info.iter(tag=etree.Element):
             elem._setup(info_schema)
-            elem._lookup_element()
         with pytest.raises(ValueError):
             info._find_possible_index(etree.Element('Author'))
         assert len(info) == 2
@@ -380,7 +351,6 @@ class Test_FomodElement:
                                 parser=parser.FOMOD_PARSER)
         for elem in info.iter(tag=etree.Element):
             elem._setup(info_schema)
-            elem._lookup_element()
         assert info.can_add_child('Author')
         assert not info.can_add_child('Name')
 
