@@ -8,8 +8,9 @@ from pyfomod import parser, validation
 
 class Test_Validate_Installer:
     def test_root(self):
+        root = parser.FOMOD_PARSER.makeelement('config')
         with pytest.raises(NotImplementedError):
-            validation.validate_installer(parser.Root())
+            validation.validate_installer(root)
 
     def test_tuple(self, simple_parse):
         assert validation.validate_installer(tuple(simple_parse))
@@ -35,8 +36,9 @@ class Test_Validate_Installer:
 
 class Test_Check_Errors:
     def test_root(self):
+        root = parser.FOMOD_PARSER.makeelement('config')
         with pytest.raises(NotImplementedError):
-            validation.check_for_errors(parser.Root())
+            validation.check_for_errors(root)
 
     def test_tuple(self, simple_parse):
         assert not validation.check_for_errors(tuple(simple_parse))

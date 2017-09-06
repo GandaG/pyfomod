@@ -22,6 +22,8 @@ from copy import deepcopy
 
 from lxml import etree
 
+import pyfomod
+
 _Attribute = namedtuple('_Attribute', "name doc default type use restriction")
 """
 This ``namedtuple`` represents a single possible attribute for a FomodElement.
@@ -251,7 +253,7 @@ class FomodElement(etree.ElementBase):
                                cls._element_get_max_occurs(ord_elem),
                                int(ord_elem.get('minOccurs', 1)))
 
-    def _setup(self, schema):
+    def _init(self):
         """
         Used to setup the class, instead of an __init__
         since lxml doesn't let us use it.
@@ -259,7 +261,7 @@ class FomodElement(etree.ElementBase):
         # pylint: disable=attribute-defined-outside-init
 
         # the schema this element belongs to
-        self._schema = schema
+        self._schema = pyfomod.FOMOD_SCHEMA_TREE
 
         # the element that holds minOccurs, etc.
         self._schema_element = None
@@ -648,6 +650,30 @@ class FomodElement(etree.ElementBase):
             return False
         return True
 
+    def __copy__(self):
+        return self.__deepcopy__(None)
+
+    def __deepcopy__(self, memo):
+        parent = self.getparent()
+        if parent is None:
+            copy_elem = self.makeelement(self.tag,
+                                         attrib=self.attrib,
+                                         nsmap=self.nsmap)
+        else:
+            copy_elem = etree.SubElement(parent,
+                                         self.tag,
+                                         attrib=self.attrib,
+                                         nsmap=self.nsmap)
+            parent.remove(copy_elem)
+
+        copy_elem.text = self.text
+        copy_elem.tail = self.tail
+
+        for child in self:
+            copy_elem.append(deepcopy(child))
+
+        return copy_elem
+
 
 class Root(FomodElement):
     """
@@ -755,6 +781,7 @@ class _FomodLookup(etree.PythonElementClassLookup):
         del doc  # make pylint shut up
 
         element_class = FomodElement
+
         if element.tag == 'config':
             element_class = Root
         elif element.tag in ('dependencies', 'moduleDependencies', 'visible'):
@@ -770,12 +797,12 @@ class _FomodLookup(etree.PythonElementClassLookup):
 
         # the pattern classes
         # ugh...
-        else:
-            for child in element:
-                if child.tag == 'type':  # the typepattern has a type child
-                    element_class = TypePattern
-                elif child.tag == 'files':  # and installpattern a files child
-                    element_class = InstallPattern
+        elif element.tag == 'pattern':
+            grandparent = element.getparent().getparent()
+            if grandparent.tag == "conditionalFileInstalls":
+                element_class = InstallPattern
+            elif grandparent.tag == "dependencyType":
+                element_class = TypePattern
 
         return element_class
 

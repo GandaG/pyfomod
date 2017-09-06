@@ -6,6 +6,7 @@ from copy import deepcopy
 
 import pytest
 from pyfomod import io, parser
+import pyfomod
 
 
 @pytest.fixture(scope='session')
@@ -57,3 +58,26 @@ def conf_tree(simple_parse):
     A function-scoped fixture that returns a copy of the conf tree.
     """
     return deepcopy(simple_parse[1])
+
+@pytest.fixture(scope='session')
+def simple_parser():
+    """
+    A session-scoped fixture that returns a simple parser with no class lookup.
+    """
+    s_parser = etree.XMLParser(remove_blank_text=True)
+    s_parser.set_element_class_lookup(
+            parser._SpecialLookup(parser._FomodLookup()))
+    return s_parser
+
+@pytest.fixture(scope='function')
+def schema_mod():
+    """
+    A funcion-scoped fixture that sets up a modifiable schema in
+    pyfomod.__init__ so that the FOMOD_PARSER will use that instead
+    of the regular one. This will be reverted at the end of the function.
+    """
+    schema_orig = pyfomod.FOMOD_SCHEMA_TREE
+    pyfomod.FOMOD_SCHEMA_TREE = deepcopy(schema_orig)
+    # tests should still access the schema via 'import pyfomod'
+    yield
+    pyfomod.FOMOD_SCHEMA_TREE = schema_orig

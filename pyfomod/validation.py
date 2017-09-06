@@ -21,15 +21,12 @@ import os
 
 from lxml import etree
 
+import pyfomod
+
 from .io import get_installer_files
 from .parser import Root
 
-INFO_SCHEMA_TREE = etree.parse(
-    os.path.join(os.path.dirname(__file__), 'info.xsd')).getroot()
-INFO_SCHEMA = etree.XMLSchema(INFO_SCHEMA_TREE)
-CONF_SCHEMA_TREE = etree.parse(
-    os.path.join(os.path.dirname(__file__), 'conf.xsd')).getroot()
-CONF_SCHEMA = etree.XMLSchema(CONF_SCHEMA_TREE)
+FOMOD_SCHEMA = etree.XMLSchema(pyfomod.FOMOD_SCHEMA_TREE)
 
 
 def validate_installer(installer):
@@ -77,8 +74,8 @@ def validate_installer(installer):
             raise ValueError
 
     # return the validity of the documents
-    return (INFO_SCHEMA.validate(installer_trees[0]) and
-            CONF_SCHEMA.validate(installer_trees[1]))
+    return (FOMOD_SCHEMA.validate(installer_trees[0]) and
+            FOMOD_SCHEMA.validate(installer_trees[1]))
 
 
 ERROR_LIST = []
