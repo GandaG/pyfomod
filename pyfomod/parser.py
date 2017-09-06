@@ -212,36 +212,6 @@ class FomodElement(etree.ElementBase):
         return None
 
     @staticmethod
-    def compare(elem1, elem2, recursive=False):
-        """
-        Compares `elem1` with `elem2`.
-
-        Args:
-            elem1 (FomodElement): The first element to compare.
-            elem2 (FomodElement): The second element to compare.
-            recursive (bool, optional): If True, will recursively
-                evaluate children of the elements to compare.
-
-        Returns:
-            bool: True if the elements are equivalent, False otherwise.
-
-        Note:
-            Even though the argument types are described as
-            :py:class:`FomodElement` any ``lxml.etree._Element`` can be used.
-        """
-        if (elem1.tag != elem2.tag or
-                elem1.text != elem2.text or
-                elem1.tail != elem2.tail or
-                elem1.attrib != elem2.attrib):
-            return False
-        if not recursive:
-            return True
-        if len(elem1) != len(elem2):
-            return False
-        compare = FomodElement.compare
-        return all(compare(c1, c2) for c1, c2 in zip(elem1, elem2))
-
-    @staticmethod
     def _get_order_from_group(group_elem, root_elem):
         """
         Returns the order indicator from a group reference.
@@ -586,7 +556,7 @@ class FomodElement(etree.ElementBase):
         nsmap = '{' + self._schema.nsmap['xs'] + '}'
 
         # if it's a simple element, no children
-        if self.compare(self._schema_type, self._schema_element, True):
+        if self._schema_type is self._schema_element:
             return None
 
         # the order tuple to return

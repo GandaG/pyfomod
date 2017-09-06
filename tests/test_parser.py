@@ -99,46 +99,6 @@ class Test_FomodElement:
     def test_get_schema_doc_none(self):
         assert parser.FomodElement._get_schema_doc(info_schema) is None
 
-    def std_cmp_elem(self):
-        return etree.fromstring("<a boo=\"2\" goo=\"5\">text<b/>tail</a>",
-                                parser=parser.FOMOD_PARSER)
-
-    def test_compare_changed_order(self):
-        elem_ord = etree.fromstring("<a goo=\"5\" boo=\"2\">text<b/>tail</a>",
-                                    parser=parser.FOMOD_PARSER)
-        assert elem_ord.compare(self.std_cmp_elem(), elem_ord)
-
-    def test_compare_changed_attribute(self):
-        elem_atr = etree.fromstring("<a boo=\"4\" goo=\"5\">text<b/>tail</a>",
-                                    parser=parser.FOMOD_PARSER)
-        assert not elem_atr.compare(self.std_cmp_elem(), elem_atr)
-
-    def test_compare_changed_tail(self):
-        elem_tail = etree.fromstring("<a boo=\"2\" goo=\"5\">text<b/>err</a>",
-                                     parser=parser.FOMOD_PARSER)
-        assert not elem_tail[0].compare(self.std_cmp_elem()[0], elem_tail[0])
-
-    def test_compare_changed_text(self):
-        elem_text = etree.fromstring("<a boo=\"2\" goo=\"5\">err<b/>tail</a>",
-                                     parser=parser.FOMOD_PARSER)
-        assert not elem_text.compare(self.std_cmp_elem(), elem_text)
-
-    def test_compare_changed_tag(self):
-        elem_tag = etree.fromstring("<c boo=\"2\" goo=\"5\">text<b/>tail</c>",
-                                    parser=parser.FOMOD_PARSER)
-        assert not elem_tag.compare(self.std_cmp_elem(), elem_tag)
-
-    def test_compare_changed_children(self):
-        elem_len = etree.fromstring("<a boo=\"2\" goo=\"5\">"
-                                    "text<b/><c/>tail</a>",
-                                    parser=parser.FOMOD_PARSER)
-        assert not elem_len.compare(self.std_cmp_elem(), elem_len, True)
-
-    def test_compare_changed_child_tag(self):
-        elem_cld = etree.fromstring("<a boo=\"2\" goo=\"5\">text<c/>tail</a>",
-                                    parser=parser.FOMOD_PARSER)
-        assert not elem_cld.compare(self.std_cmp_elem(), elem_cld, True)
-
     def test_setup_schema(self, simple_parse):
         for elem in simple_parse[0].iter(tag=etree.Element):
             elem._setup(info_schema)
