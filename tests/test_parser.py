@@ -2,6 +2,7 @@ from copy import copy, deepcopy
 
 from lxml import etree
 
+import mock
 import pyfomod
 import pytest
 from pyfomod import parser
@@ -159,6 +160,20 @@ class Test_FomodElement:
         file_dep_elem = simple_parse[1][2][1]
         assert file_dep_elem.valid_attributes() == file_dep_attrs
 
+    def test_required_attributes(self):
+        attr1 = parser._Attribute("attr1", None, None,
+                                  "string", "optional", None)
+        attr2 = parser._Attribute("attr2", None, None,
+                                  "string", "required", None)
+        attr3 = parser._Attribute("attr3", None, None,
+                                  "string", "optional", None)
+        attr4 = parser._Attribute("attr4", None, None,
+                                  "string", "required", None)
+        self_mock = mock.Mock(spec=parser.FomodElement)
+        self_mock.valid_attributes.return_value = [attr1, attr2, attr3, attr4]
+        assert parser.FomodElement.required_attributes(self_mock) == [attr2,
+                                                                      attr4]
+
     def test_find_valid_attribute_normal(self, simple_parse):
         version = simple_parse[0][5]
         attr = parser._Attribute('MachineVersion', None, None,
@@ -214,6 +229,99 @@ class Test_FomodElement:
     def test_valid_children_none(self, simple_parse):
         name = simple_parse[0][1]
         assert name.valid_children() is None
+
+    def test_required_children_choice_none(self):
+        test_func = parser.FomodElement._required_children_choice
+        test_choice = parser._OrderIndicator('choice', [], 2, 2)
+        assert test_func(None, test_choice) == []
+
+    def test_required_children_choice_elem(self):
+        test_func = parser.FomodElement._required_children_choice
+        test_child = parser._ChildElement('child', 2, 2)
+        test_choice = parser._OrderIndicator('choice', [test_child], 2, 2)
+        assert test_func(None, test_choice) == [('child', 4)]
+
+    def test_required_children_choice_choice(self):
+        test_func = parser.FomodElement._required_children_choice
+        test_choice2 = mock.Mock(spec=parser._OrderIndicator)
+        test_choice2.type = 'choice'
+        test_choice = parser._OrderIndicator('choice', [test_choice2], 2, 2)
+        mock_self = mock.Mock(spec=parser.FomodElement)
+        mock_self._required_children_choice.return_value = [('child', 2)]
+        assert test_func(mock_self, test_choice) == [('child', 4)]
+        assert mock_self._required_children_choice.called
+
+    def test_required_children_choice_sequence(self):
+        test_func = parser.FomodElement._required_children_choice
+        test_sequence = mock.Mock(spec=parser._OrderIndicator)
+        test_sequence.type = 'sequence'
+        test_choice = parser._OrderIndicator('choice', [test_sequence], 2, 2)
+        mock_self = mock.Mock(spec=parser.FomodElement)
+        mock_self._required_children_sequence.return_value = [('child', 2)]
+        assert test_func(mock_self, test_choice) == [('child', 4)]
+        assert mock_self._required_children_sequence.called
+
+    def test_required_children_sequence_none(self):
+        test_func = parser.FomodElement._required_children_sequence
+        test_sequence = parser._OrderIndicator('sequence', [], 2, 2)
+        assert test_func(None, test_sequence) == []
+
+    def test_required_children_sequence_elem(self):
+        test_func = parser.FomodElement._required_children_sequence
+        test_child = mock.Mock(spec=parser._ChildElement)
+        test_child.tag = 'child'
+        test_child.min_occ = 5
+        test_sequence = parser._OrderIndicator('sequence', [test_child], 2, 2)
+        assert test_func(None, test_sequence) == [('child', 10)]
+
+    def test_required_children_sequence_choice(self):
+        test_func = parser.FomodElement._required_children_sequence
+        test_choice = mock.Mock(spec=parser._OrderIndicator)
+        test_choice.type = 'choice'
+        test_sequence = parser._OrderIndicator('sequence', [test_choice], 2, 2)
+        mock_self = mock.Mock(spec=parser.FomodElement)
+        mock_self._required_children_choice.return_value = [('child', 2)]
+        assert test_func(mock_self, test_sequence) == [('child', 4)]
+        assert mock_self._required_children_choice.called
+
+    def test_required_children_sequence_sequence(self):
+        test_func = parser.FomodElement._required_children_sequence
+        test_sequence = mock.Mock(spec=parser._OrderIndicator)
+        test_sequence.type = 'sequence'
+        test_sequence = parser._OrderIndicator('sequence', [test_sequence],
+                                               2, 2)
+        mock_self = mock.Mock(spec=parser.FomodElement)
+        mock_self._required_children_sequence.return_value = [('child', 2)]
+        assert test_func(mock_self, test_sequence) == [('child', 4)]
+        assert mock_self._required_children_sequence.called
+
+    def test_required_children_none(self):
+        test_func = parser.FomodElement.required_children
+        mock_self = mock.Mock(spec=parser.FomodElement)
+        mock_self.valid_children.return_value = None
+        assert test_func(mock_self) == []
+
+    def test_required_children_choice(self):
+        test_func = parser.FomodElement.required_children
+        test_choice = mock.Mock(spec=parser._OrderIndicator)
+        test_choice.type = 'choice'
+        mock_self = mock.Mock(spec=parser.FomodElement)
+        mock_self.valid_children.return_value = test_choice
+        mock_self._required_children_choice.return_value = [('child', 2)]
+        assert test_func(mock_self) == [('child', 2)]
+        mock_self._required_children_choice.assert_called_once_with(
+            test_choice)
+
+    def test_required_children_sequence(self):
+        test_func = parser.FomodElement.required_children
+        test_sequence = mock.Mock(spec=parser._OrderIndicator)
+        test_sequence.type = 'sequence'
+        mock_self = mock.Mock(spec=parser.FomodElement)
+        mock_self.valid_children.return_value = test_sequence
+        mock_self._required_children_sequence.return_value = [('child', 2)]
+        assert test_func(mock_self) == [('child', 2)]
+        mock_self._required_children_sequence.assert_called_once_with(
+            test_sequence)
 
     def test_find_possible_index_no_children(self):
         info = etree.fromstring("<fomod/>",

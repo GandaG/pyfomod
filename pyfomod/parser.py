@@ -486,6 +486,17 @@ class FomodElement(etree.ElementBase):
 
         return result_list
 
+    def required_attributes(self):
+        """
+        Utility method that returns only attributes that are required
+        by this element.
+
+        Returns:
+            list(_Attribute): The list of required attributes.
+        """
+        valid_attrib = self.valid_attributes()
+        return [attr for attr in valid_attrib if attr.use == 'required']
+
     def _find_valid_attribute(self, name):
         """
         Checks if possible attribute name is possible within the schema.
@@ -578,6 +589,73 @@ class FomodElement(etree.ElementBase):
             initial_ord = self._valid_children_parse_order(first)
 
         return initial_ord
+
+    def _required_children_choice(self, choice):
+        """
+        Returns the required children of a choice order indicator.
+        Always selects the first path in the choice, regardless of
+        the actual children.
+        It's probably a good idea to eventually try to make it choose
+        the corrent path based on the existing children.
+        """
+        req_child = []
+        try:
+            selected_path = choice.element_list[0]
+        except IndexError:
+            return []
+
+        if isinstance(selected_path, _OrderIndicator):
+            if selected_path.type == 'choice':
+                req_child.extend(self._required_children_choice(selected_path))
+            else:
+                req_child.extend(
+                    self._required_children_sequence(selected_path))
+        elif selected_path.min_occ > 0:
+            req_child.append((selected_path.tag, selected_path.min_occ))
+
+        for index in range(0, len(req_child)):
+            req_child[index] = (req_child[index][0],
+                                req_child[index][1] * choice.min_occ)
+
+        return req_child
+
+    def _required_children_sequence(self, sequence):
+        """
+        Returns the required children of a sequence order indicator.
+        """
+        req_child = []
+
+        for elem in sequence.element_list:
+            if isinstance(elem, _OrderIndicator):
+                if elem.type == 'choice':
+                    req_child.extend(self._required_children_choice(elem))
+                else:
+                    req_child.extend(self._required_children_sequence(elem))
+            elif elem.min_occ > 0:
+                req_child.append((elem.tag, elem.min_occ))
+
+        for index in range(0, len(req_child)):
+            req_child[index] = (req_child[index][0],
+                                req_child[index][1] * sequence.min_occ)
+
+        return req_child
+
+    def required_children(self):
+        """
+        Returns a list with the required children by this element.
+        Currently, this assumes no children exist and whenever there
+        is a choice to be made it always chooses the first path.
+
+        Returns:
+            list(tuple(string, int)): A list of tuples as
+                (child tag, child minimum occurences).
+        """
+        valid_children = self.valid_children()
+        if valid_children is None:
+            return []
+        elif valid_children.type == 'choice':
+            return self._required_children_choice(valid_children)
+        return self._required_children_sequence(valid_children)
 
     def _find_possible_index(self, child):
         """
