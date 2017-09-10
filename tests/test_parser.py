@@ -12,6 +12,26 @@ from pyfomod import parser
 fomod_schema = pyfomod.FOMOD_SCHEMA_TREE
 
 
+def assert_elem_eq(e1, e2):
+    if (e1.tag != e2.tag or
+            e1.text != e2.text or
+            e1.tail != e2.tail or
+            e1.attrib != e2.attrib or
+            len(e1) != len(e2)):
+        raise AssertionError("The following elements are not equivalent:\n"
+                             "tag: {}\ntext: {}\ntail: {}\n"
+                             "attrib: {}\nchild_num: {}\n\n"
+                             "tag: {}\ntext: {}\ntail: {}\n"
+                             "attrib: {}\nchild_num: {}"
+                             "".format(e1.tag, e1.text,
+                                       e1.tail, e1.attrib,
+                                       len(e1), e2.tag,
+                                       e2.text, e2.tail,
+                                       e2.attrib, len(e2)))
+    for c1, c2 in zip(e1, e2):
+        assert_elem_eq(c1, c2)
+
+
 class Test_FomodElement:
     def test_element_get_max_occurs_normal(self, simple_parse):
         root = simple_parse[0]
@@ -323,50 +343,189 @@ class Test_FomodElement:
         mock_self._required_children_sequence.assert_called_once_with(
             test_sequence)
 
-    def test_find_possible_index_no_children(self):
-        info = etree.fromstring("<fomod/>",
-                                parser=parser.FOMOD_PARSER)
-        assert info._find_possible_index('Name') == -1
-        assert len(info) == 0
+    @mock.patch('pyfomod.parser.FomodElement._init')
+    def test_setup_shallow_schema_and_self_simple_elem(self, mock_init):
+        schema = etree.fromstring("<schema xmlns='a'>"
+                                  "<element name='elem'>"
+                                  "<complexType/>"
+                                  "</element>"
+                                  "</schema>")
+        elem = parser.FomodElement()
+        elem.tag = 'elem'
+        elem._schema_element = schema[0]
+        elem._schema_type = schema[0]
+        result = elem._setup_shallow_schema_and_self()
+        assert_elem_eq(result[0], schema)
+        assert_elem_eq(result[1], elem)
 
-    def test_find_possible_index_none(self):
-        conf = etree.fromstring("<config><moduleName/></config>",
-                                parser=parser.FOMOD_PARSER)
-        assert conf._find_possible_index('moduleName') is None
-        assert len(conf) == 1
+    @mock.patch('pyfomod.parser.FomodElement._init')
+    def test_setup_shallow_schema_and_self_complex_separate(self, mock_init):
+        schema = etree.fromstring("<xs:schema xmlns:xs='a'>"
+                                  "<xs:element name='elem' type='elemtype'/>"
+                                  "<xs:complexType name='elemtype'>"
+                                  "<xs:sequence>"
+                                  "<xs:element name='child1'/>"
+                                  "<xs:element name='child2'/>"
+                                  "<xs:element name='child3'/>"
+                                  "</xs:sequence>"
+                                  "</xs:complexType>"
+                                  "</xs:schema>")
+        elem = parser.FomodElement()
+        elem.tag = 'elem'
+        elem._schema_element = schema[0]
+        elem._schema_type = schema[1]
+        etree.SubElement(elem, 'child1')
+        etree.SubElement(elem, 'child2')
+        etree.SubElement(elem, 'child3')
+        result = elem._setup_shallow_schema_and_self()
+        assert_elem_eq(result[0], schema)
+        assert_elem_eq(result[1], elem)
 
-    def test_find_possible_index_invalid(self):
-        info = etree.fromstring("<fomod/>",
-                                parser=parser.FOMOD_PARSER)
-        assert info._find_possible_index('any') is None
-        assert len(info) == 0
-
-    def test_find_possible_index_normal(self):
-        info = etree.fromstring("<fomod><Name/><Version/></fomod>",
-                                parser=parser.FOMOD_PARSER)
-        assert info._find_possible_index('Author') == 1
-        assert len(info) == 2
-
-    def test_find_possible_index_fomodelement(self):
-        info = etree.fromstring("<fomod/>",
-                                parser=parser.FOMOD_PARSER)
-        name = etree.SubElement(info, 'Name')
-        info.remove(name)
-        assert info._find_possible_index(name) == -1
-        assert len(info) == 0
+    @mock.patch('pyfomod.parser.FomodElement._init')
+    def test_setup_shallow_schema_and_self_complex_below(self, mock_init):
+        schema = etree.fromstring("<xs:schema xmlns:xs='a'>"
+                                  "<xs:element name='elem'>"
+                                  "<xs:complexType><xs:sequence>"
+                                  "<xs:element name='child1'/>"
+                                  "<xs:element name='child2'/>"
+                                  "<xs:element name='child3'/>"
+                                  "</xs:sequence></xs:complexType>"
+                                  "</xs:element>"
+                                  "</xs:schema>")
+        elem = parser.FomodElement()
+        elem.tag = 'elem'
+        elem._schema_element = schema[0]
+        elem._schema_type = schema[0][0]
+        etree.SubElement(elem, 'child1')
+        etree.SubElement(elem, 'child2')
+        etree.SubElement(elem, 'child3')
+        result = elem._setup_shallow_schema_and_self()
+        assert_elem_eq(result[0], schema)
+        assert_elem_eq(result[1], elem)
 
     def test_find_possible_index_valuerror(self):
-        info = etree.fromstring("<fomod><Name/><Version/></fomod>",
-                                parser=parser.FOMOD_PARSER)
+        test_func = parser.FomodElement._find_possible_index
         with pytest.raises(ValueError):
-            info._find_possible_index(etree.Element('Author'))
-        assert len(info) == 2
+            # the second arg is any type other than string or FomodElement
+            test_func(None, 0)
+
+    def test_find_possible_index_none(self):
+        test_func = parser.FomodElement._find_possible_index
+        test_tag = 'test'
+        schema = etree.fromstring("<schema "
+                                  "xmlns='http://www.w3.org/2001/XMLSchema'>"
+                                  "<element name='elem'>"
+                                  "<complexType/>"
+                                  "</element>"
+                                  "</schema>")
+        elem = etree.Element('elem')
+        mock_self = mock.MagicMock(spec=parser.FomodElement)
+        mock_self._setup_shallow_schema_and_self.return_value = (schema, elem)
+        assert test_func(mock_self, test_tag) is None
+        with mock.patch('pyfomod.parser.FomodElement._init'):
+            f_elem = parser.FomodElement()
+            f_elem.tag = test_tag
+            assert test_func(mock_self, f_elem) is None
+
+    def test_find_possible_index_last(self):
+        test_func = parser.FomodElement._find_possible_index
+        test_tag = 'test'
+        schema = etree.fromstring("<schema "
+                                  "xmlns='http://www.w3.org/2001/XMLSchema'>"
+                                  "<element name='elem'>"
+                                  "<complexType>"
+                                  "<sequence>"
+                                  "<element name='test' minOccurs='0'>"
+                                  "<complexType/>"
+                                  "</element>"
+                                  "</sequence>"
+                                  "</complexType>"
+                                  "</element>"
+                                  "</schema>")
+        elem = etree.Element('elem')
+        mock_self = mock.MagicMock(spec=parser.FomodElement)
+        mock_self._setup_shallow_schema_and_self.return_value = (schema, elem)
+        assert test_func(mock_self, test_tag) == -1
+        # a reset is needed because elem was modified
+        elem = etree.Element('elem')
+        mock_self._setup_shallow_schema_and_self.return_value = (schema, elem)
+        with mock.patch('pyfomod.parser.FomodElement._init'):
+            f_elem = parser.FomodElement()
+            f_elem.tag = test_tag
+            assert test_func(mock_self, f_elem) == -1
+
+    def test_find_possible_index_mid(self):
+        test_func = parser.FomodElement._find_possible_index
+        test_tag = 'child2'
+        schema = etree.fromstring("<schema "
+                                  "xmlns='http://www.w3.org/2001/XMLSchema'>"
+                                  "<element name='elem'>"
+                                  "<complexType>"
+                                  "<sequence>"
+                                  "<element name='child1'/>"
+                                  "<element name='child2' minOccurs='0'/>"
+                                  "<element name='child3'/>"
+                                  "</sequence>"
+                                  "</complexType>"
+                                  "</element>"
+                                  "</schema>")
+        elem = etree.Element('elem')
+        etree.SubElement(elem, 'child1')
+        etree.SubElement(elem, 'child3')
+        mock_self = mock.MagicMock(spec=parser.FomodElement)
+        mock_self._setup_shallow_schema_and_self.return_value = (schema, elem)
+        assert test_func(mock_self, test_tag) == 1
+        # a reset is needed because elem was modified
+        elem = etree.Element('elem')
+        etree.SubElement(elem, 'child1')
+        etree.SubElement(elem, 'child3')
+        mock_self._setup_shallow_schema_and_self.return_value = (schema, elem)
+        with mock.patch('pyfomod.parser.FomodElement._init'):
+            f_elem = parser.FomodElement()
+            f_elem.tag = test_tag
+            assert test_func(mock_self, f_elem) == 1
 
     def test_can_add_child(self):
         info = etree.fromstring("<fomod><Name/></fomod>",
                                 parser=parser.FOMOD_PARSER)
         assert info.can_add_child('Author')
         assert not info.can_add_child('Name')
+
+    def test_can_remove_child_valueerror(self):
+        test_func = parser.FomodElement.can_remove_child
+        with pytest.raises(ValueError):
+            # second arg is anything but FomodElement
+            test_func(None, 0)
+        mock_self = mock.MagicMock(spec=parser.FomodElement)
+        mock_self.__iter__.return_value = []
+        mock_child = mock.MagicMock(spec=parser.FomodElement)
+        with pytest.raises(ValueError):
+            test_func(mock_self, mock_child)
+
+    def test_can_remove_child_normal(self):
+        test_func = parser.FomodElement.can_remove_child
+        schema = etree.fromstring("<xs:schema xmlns:xs='http://www."
+                                  "w3.org/2001/XMLSchema'>"
+                                  "<xs:element name='elem'>"
+                                  "<xs:complexType>"
+                                  "<xs:sequence>"
+                                  "<xs:element name='child1' type='empty'/>"
+                                  "<xs:element name='child2' type='empty'/>"
+                                  "</xs:sequence>"
+                                  "</xs:complexType>"
+                                  "</xs:element>"
+                                  "<xs:complexType name='empty'/>"
+                                  "</xs:schema>")
+        elem = etree.Element('elem')
+        etree.SubElement(elem, 'child1')
+        etree.SubElement(elem, 'child2')
+        mock_self = mock.MagicMock(spec=parser.FomodElement)
+        mock_child = mock.MagicMock(spec=parser.FomodElement)
+        mock_self.__contains__ = lambda y, x: True if x is mock_child \
+            else False
+        mock_self._setup_shallow_schema_and_self.return_value = (schema, elem)
+        mock_self.index.return_value = 1
+        assert not test_func(mock_self, mock_child)
 
     def test_copy(self):
         root = etree.fromstring("<fomod attr='1'>text</fomod>",

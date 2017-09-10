@@ -657,27 +657,11 @@ class FomodElement(etree.ElementBase):
             return self._required_children_choice(valid_children)
         return self._required_children_sequence(valid_children)
 
-    def _find_possible_index(self, child):
+    def _setup_shallow_schema_and_self(self):
         """
-        Tries to figure out if a child can be added to this element,
-        and if it can, what index it should be inserted at.
-
-        To this end, a shallow copy of this element's schema correspondence
-        and it's possible children is performed.
-        After, the same is done to this element and it's real children.
-        A test element with the child's tag is created.
-        This test element is then inserted at every possible position in the
-        copy of self (reversed order) until a valid position is found.
+        Returns a shallow copy of the schema corresponding to this element
+        and a shallow copy of this element and its children.
         """
-        tag = ""
-        if isinstance(child, str):
-            tag = child
-        elif isinstance(child, FomodElement):
-            tag = child.tag
-        else:
-            raise ValueError("Only tags (string) and elements (FomodElement)"
-                             " are accepted as arguments.")
-
         schema_elem = etree.Element(etree.QName(self._schema_element,
                                                 'schema'),
                                     nsmap=self._schema_element.nsmap)
@@ -699,6 +683,31 @@ class FomodElement(etree.ElementBase):
         self_copy = etree.Element(self.tag)
         for elem in self:
             etree.SubElement(self_copy, elem.tag)
+
+        return schema_elem, self_copy
+
+    def _find_possible_index(self, child):
+        """
+        Tries to figure out if a child can be added to this element,
+        and if it can, what index it should be inserted at.
+
+        To this end, a shallow copy of this element's schema correspondence
+        and it's possible children is performed.
+        After, the same is done to this element and it's real children.
+        A test element with the child's tag is created.
+        This test element is then inserted at every possible position in the
+        copy of self (reversed order) until a valid position is found.
+        """
+        tag = ""
+        if isinstance(child, str):
+            tag = child
+        elif isinstance(child, FomodElement):
+            tag = child.tag
+        else:
+            raise ValueError("Only tags (string) and elements (FomodElement)"
+                             " are accepted as arguments.")
+
+        schema_elem, self_copy = self._setup_shallow_schema_and_self()
 
         test_elem = etree.Element(tag)
         schema = etree.XMLSchema(schema_elem)
@@ -727,6 +736,27 @@ class FomodElement(etree.ElementBase):
         if self._find_possible_index(child) is None:
             return False
         return True
+
+    def can_remove_child(self, child):
+        """
+        Checks if a given child can be removed while maintaining validity.
+
+        Args:
+            child (FomodElement): The child element to remove.
+
+        Returns:
+            bool: Whether the child can be removed.
+        """
+        if not isinstance(child, FomodElement):
+            raise ValueError("child argument must be a FomodElement.")
+        elif child not in self:
+            raise ValueError("child argument is not a child of this element.")
+
+        index = self.index(child)
+        schema_elem, self_copy = self._setup_shallow_schema_and_self()
+        self_copy.remove(self_copy[index])
+        schema = etree.XMLSchema(schema_elem)
+        return schema.validate(self_copy)
 
     def __copy__(self):
         return self.__deepcopy__(None)
