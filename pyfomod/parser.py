@@ -704,8 +704,8 @@ class FomodElement(etree.ElementBase):
         elif isinstance(child, FomodElement):
             tag = child.tag
         else:
-            raise ValueError("Only tags (string) and elements (FomodElement)"
-                             " are accepted as arguments.")
+            raise TypeError("Only tags (string) and elements (FomodElement)"
+                            " are accepted as arguments.")
 
         schema_elem, self_copy = self._setup_shallow_schema_and_self()
 
@@ -748,7 +748,7 @@ class FomodElement(etree.ElementBase):
             bool: Whether the child can be removed.
         """
         if not isinstance(child, FomodElement):
-            raise ValueError("child argument must be a FomodElement.")
+            raise TypeError("child argument must be a FomodElement.")
         elif child not in self:
             raise ValueError("child argument is not a child of this element.")
 
@@ -771,7 +771,7 @@ class FomodElement(etree.ElementBase):
         """
         if not (isinstance(old_child, FomodElement) or
                 isinstance(new_child, FomodElement)):
-            raise ValueError("child arguments must be a FomodElement.")
+            raise TypeError("child arguments must be a FomodElement.")
         elif (old_child not in self or
               new_child not in self):
             raise ValueError("child argument is not a child of this element.")
@@ -797,7 +797,7 @@ class FomodElement(etree.ElementBase):
         """
         if not (isinstance(child, FomodElement) or
                 isinstance(new_parent, FomodElement)):
-            raise ValueError("Arguments must be a FomodElement.")
+            raise TypeError("Arguments must be a FomodElement.")
         elif child not in self:
             raise ValueError("child argument is not a child of this element.")
 
@@ -818,7 +818,7 @@ class FomodElement(etree.ElementBase):
         """
         if not (isinstance(child, FomodElement) or
                 isinstance(new_parent, FomodElement)):
-            raise ValueError("Arguments must be a FomodElement.")
+            raise TypeError("Arguments must be a FomodElement.")
         elif child not in self:
             raise ValueError("child argument is not a child of this element.")
 

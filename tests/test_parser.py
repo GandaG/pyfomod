@@ -253,13 +253,15 @@ class Test_FomodElement:
     def test_required_children_choice_none(self):
         test_func = parser.FomodElement._required_children_choice
         test_choice = parser._OrderIndicator('choice', [], 2, 2)
-        assert test_func(None, test_choice) == []
+        mock_self = mock.Mock(spec=parser.FomodElement)
+        assert test_func(mock_self, test_choice) == []
 
     def test_required_children_choice_elem(self):
         test_func = parser.FomodElement._required_children_choice
         test_child = parser._ChildElement('child', 2, 2)
         test_choice = parser._OrderIndicator('choice', [test_child], 2, 2)
-        assert test_func(None, test_choice) == [('child', 4)]
+        mock_self = mock.Mock(spec=parser.FomodElement)
+        assert test_func(mock_self, test_choice) == [('child', 4)]
 
     def test_required_children_choice_choice(self):
         test_func = parser.FomodElement._required_children_choice
@@ -284,7 +286,8 @@ class Test_FomodElement:
     def test_required_children_sequence_none(self):
         test_func = parser.FomodElement._required_children_sequence
         test_sequence = parser._OrderIndicator('sequence', [], 2, 2)
-        assert test_func(None, test_sequence) == []
+        mock_self = mock.Mock(spec=parser.FomodElement)
+        assert test_func(mock_self, test_sequence) == []
 
     def test_required_children_sequence_elem(self):
         test_func = parser.FomodElement._required_children_sequence
@@ -292,7 +295,8 @@ class Test_FomodElement:
         test_child.tag = 'child'
         test_child.min_occ = 5
         test_sequence = parser._OrderIndicator('sequence', [test_child], 2, 2)
-        assert test_func(None, test_sequence) == [('child', 10)]
+        mock_self = mock.Mock(spec=parser.FomodElement)
+        assert test_func(mock_self, test_sequence) == [('child', 10)]
 
     def test_required_children_sequence_choice(self):
         test_func = parser.FomodElement._required_children_sequence
@@ -403,11 +407,12 @@ class Test_FomodElement:
         assert_elem_eq(result[0], schema)
         assert_elem_eq(result[1], elem)
 
-    def test_find_possible_index_valuerror(self):
+    def test_find_possible_index_typerror(self):
         test_func = parser.FomodElement._find_possible_index
-        with pytest.raises(ValueError):
+        with pytest.raises(TypeError):
             # the second arg is any type other than string or FomodElement
-            test_func(None, 0)
+            mock_self = mock.Mock(spec=parser.FomodElement)
+            test_func(mock_self, 0)
 
     def test_find_possible_index_none(self):
         test_func = parser.FomodElement._find_possible_index
@@ -491,11 +496,12 @@ class Test_FomodElement:
         assert info.can_add_child('Author')
         assert not info.can_add_child('Name')
 
-    def test_can_remove_child_valueerror(self):
+    def test_can_remove_child_error(self):
         test_func = parser.FomodElement.can_remove_child
-        with pytest.raises(ValueError):
+        with pytest.raises(TypeError):
             # second arg is anything but FomodElement
-            test_func(None, 0)
+            mock_self = mock.Mock(spec=parser.FomodElement)
+            test_func(mock_self, 0)
         mock_self = mock.MagicMock(spec=parser.FomodElement)
         mock_self.__iter__.return_value = []
         mock_child = mock.MagicMock(spec=parser.FomodElement)
@@ -527,11 +533,12 @@ class Test_FomodElement:
         mock_self.index.return_value = 1
         assert not test_func(mock_self, mock_child)
 
-    def test_can_replace_child_valueerror(self):
+    def test_can_replace_child_error(self):
         test_func = parser.FomodElement.can_replace_child
-        with pytest.raises(ValueError):
+        with pytest.raises(TypeError):
             # second arg is anything but FomodElement
-            test_func(None, 0, 0)
+            mock_self = mock.Mock(spec=parser.FomodElement)
+            test_func(mock_self, 0, 0)
         mock_self = mock.MagicMock(spec=parser.FomodElement)
         mock_old = mock.MagicMock(spec=parser.FomodElement)
         mock_new = mock.MagicMock(spec=parser.FomodElement)
@@ -565,11 +572,12 @@ class Test_FomodElement:
         mock_self.index.return_value = 0
         assert test_func(mock_self, mock_old, mock_new)
 
-    def test_can_copy_child_valueerror(self):
+    def test_can_copy_child_error(self):
         test_func = parser.FomodElement.can_copy_child
-        with pytest.raises(ValueError):
+        with pytest.raises(TypeError):
             # second arg is anything but FomodElement
-            test_func(None, 0, 0)
+            mock_self = mock.Mock(spec=parser.FomodElement)
+            test_func(mock_self, 0, 0)
         mock_self = mock.MagicMock(spec=parser.FomodElement)
         mock_child = mock.MagicMock(spec=parser.FomodElement)
         with pytest.raises(ValueError):
@@ -585,11 +593,12 @@ class Test_FomodElement:
         mock_parent.can_add_child.return_value = True
         assert test_func(mock_self, mock_child, mock_parent)
 
-    def test_can_move_child_valueerror(self):
+    def test_can_move_child_error(self):
         test_func = parser.FomodElement.can_move_child
-        with pytest.raises(ValueError):
+        with pytest.raises(TypeError):
             # second arg is anything but FomodElement
-            test_func(None, 0, 0)
+            mock_self = mock.Mock(spec=parser.FomodElement)
+            test_func(mock_self, 0, 0)
         mock_self = mock.MagicMock(spec=parser.FomodElement)
         mock_child = mock.MagicMock(spec=parser.FomodElement)
         with pytest.raises(ValueError):
