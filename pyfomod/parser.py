@@ -758,6 +758,30 @@ class FomodElement(etree.ElementBase):
         schema = etree.XMLSchema(schema_elem)
         return schema.validate(self_copy)
 
+    def can_replace_child(self, old_child, new_child):
+        """
+        Checks if a given child can be replaced while maintaining validity.
+
+        Args:
+            old_child (FomodElement): The child element to replaced.
+            new_child (FomodElement): The child element to inserted.
+
+        Returns:
+            bool: Whether the child can be replaced.
+        """
+        if not (isinstance(old_child, FomodElement) or
+                isinstance(new_child, FomodElement)):
+            raise ValueError("child arguments must be a FomodElement.")
+        elif (old_child not in self or
+              new_child not in self):
+            raise ValueError("child argument is not a child of this element.")
+
+        index = self.index(old_child)
+        schema_elem, self_copy = self._setup_shallow_schema_and_self()
+        self_copy.replace(self_copy[index], etree.Element(new_child.tag))
+        schema = etree.XMLSchema(schema_elem)
+        return schema.validate(self_copy)
+
     def __copy__(self):
         return self.__deepcopy__(None)
 
