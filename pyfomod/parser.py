@@ -782,6 +782,48 @@ class FomodElement(etree.ElementBase):
         schema = etree.XMLSchema(schema_elem)
         return schema.validate(self_copy)
 
+    def can_copy_child(self, child, new_parent):
+        """
+        Checks if a given child can be copied to a different parent
+        while maintaining validity.
+
+        Args:
+            child (FomodElement): The child element to copy.
+            new_parent (FomodElement): The element where the copy
+                will be inserted.
+
+        Returns:
+            bool: Whether the child can be copied.
+        """
+        if not (isinstance(child, FomodElement) or
+                isinstance(new_parent, FomodElement)):
+            raise ValueError("Arguments must be a FomodElement.")
+        elif child not in self:
+            raise ValueError("child argument is not a child of this element.")
+
+        return new_parent.can_add_child(child)
+
+    def can_move_child(self, child, new_parent):
+        """
+        Checks if a given child can be moved to a different parent
+        while maintaining validity.
+
+        Args:
+            child (FomodElement): The child element to move.
+            new_parent (FomodElement): The element where the child
+                will be inserted.
+
+        Returns:
+            bool: Whether the child can be moved.
+        """
+        if not (isinstance(child, FomodElement) or
+                isinstance(new_parent, FomodElement)):
+            raise ValueError("Arguments must be a FomodElement.")
+        elif child not in self:
+            raise ValueError("child argument is not a child of this element.")
+
+        return new_parent.can_add_child(child) and self.can_remove_child(child)
+
     def __copy__(self):
         return self.__deepcopy__(None)
 

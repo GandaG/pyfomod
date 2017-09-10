@@ -565,6 +565,47 @@ class Test_FomodElement:
         mock_self.index.return_value = 0
         assert test_func(mock_self, mock_old, mock_new)
 
+    def test_can_copy_child_valueerror(self):
+        test_func = parser.FomodElement.can_copy_child
+        with pytest.raises(ValueError):
+            # second arg is anything but FomodElement
+            test_func(None, 0, 0)
+        mock_self = mock.MagicMock(spec=parser.FomodElement)
+        mock_child = mock.MagicMock(spec=parser.FomodElement)
+        with pytest.raises(ValueError):
+            test_func(mock_self, mock_child, None)
+
+    def test_can_copy_child_normal(self):
+        test_func = parser.FomodElement.can_copy_child
+        mock_child = mock.MagicMock(spec=parser.FomodElement)
+        mock_self = mock.MagicMock(spec=parser.FomodElement)
+        mock_self.__contains__ = lambda y, x: True \
+            if x is mock_child else False
+        mock_parent = mock.MagicMock(spec=parser.FomodElement)
+        mock_parent.can_add_child.return_value = True
+        assert test_func(mock_self, mock_child, mock_parent)
+
+    def test_can_move_child_valueerror(self):
+        test_func = parser.FomodElement.can_move_child
+        with pytest.raises(ValueError):
+            # second arg is anything but FomodElement
+            test_func(None, 0, 0)
+        mock_self = mock.MagicMock(spec=parser.FomodElement)
+        mock_child = mock.MagicMock(spec=parser.FomodElement)
+        with pytest.raises(ValueError):
+            test_func(mock_self, mock_child, None)
+
+    def test_can_move_child_normal(self):
+        test_func = parser.FomodElement.can_move_child
+        mock_child = mock.MagicMock(spec=parser.FomodElement)
+        mock_self = mock.MagicMock(spec=parser.FomodElement)
+        mock_self.__contains__ = lambda y, x: True \
+            if x is mock_child else False
+        mock_self.can_remove_child.return_value = True
+        mock_parent = mock.MagicMock(spec=parser.FomodElement)
+        mock_parent.can_add_child.return_value = True
+        assert test_func(mock_self, mock_child, mock_parent)
+
     def test_copy(self):
         root = etree.fromstring("<fomod attr='1'>text</fomod>",
                                 parser=parser.FOMOD_PARSER)
