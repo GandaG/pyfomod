@@ -543,6 +543,21 @@ class Test_FomodElement:
         mock_self.index.return_value = 1
         assert not test_func(mock_self, mock_child)
 
+    def test_remove_child_error(self):
+        test_func = parser.FomodElement.remove_child
+        mock_self = mock.Mock(spec=parser.FomodElement)
+        mock_self.can_remove_child.return_value = False
+        with pytest.raises(ValueError):
+            test_func(mock_self, 0)
+
+    def test_remove_child_normal(self):
+        test_func = parser.FomodElement.remove_child
+        mock_self = mock.Mock(spec=parser.FomodElement)
+        mock_self.can_remove_child.return_value = True
+        test_func(mock_self, 0)
+        mock_self.can_remove_child.assert_called_once_with(0)
+        mock_self.remove.assert_called_once_with(0)
+
     def test_can_replace_child_error(self):
         test_func = parser.FomodElement.can_replace_child
         with pytest.raises(TypeError):

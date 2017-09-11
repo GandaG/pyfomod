@@ -796,6 +796,10 @@ class FomodElement(etree.ElementBase):
 
         Returns:
             bool: Whether the child can be removed.
+
+        Raises:
+            TypeError: If child is not a FomodElement.
+            ValueError: If child is not a child of this element.
         """
         if not isinstance(child, FomodElement):
             raise TypeError("child argument must be a FomodElement.")
@@ -807,6 +811,24 @@ class FomodElement(etree.ElementBase):
         self_copy.remove(self_copy[index])
         schema = etree.XMLSchema(schema_elem)
         return schema.validate(self_copy)
+
+    def remove_child(self, child):
+        """
+        Removes a child from this element.
+
+        Args:
+            child (FomodElement): The child element to remove.
+
+        Raises:
+            TypeError: If child is not a FomodElement.
+            ValueError: If child is not a child of this element.
+            ValueError: If child cannot be removed from this element.
+        """
+        if self.can_remove_child(child):
+            self.remove(child)
+        else:
+            raise ValueError("child argument cannot be "
+                             "removed from this element.")
 
     def can_replace_child(self, old_child, new_child):
         """
