@@ -686,7 +686,7 @@ class FomodElement(etree.ElementBase):
 
         return schema_elem, self_copy
 
-    def _find_possible_index(self, child):
+    def _find_possible_index(self, tag):
         """
         Tries to figure out if a child can be added to this element,
         and if it can, what index it should be inserted at.
@@ -698,15 +698,6 @@ class FomodElement(etree.ElementBase):
         This test element is then inserted at every possible position in the
         copy of self (reversed order) until a valid position is found.
         """
-        tag = ""
-        if isinstance(child, str):
-            tag = child
-        elif isinstance(child, FomodElement):
-            tag = child.tag
-        else:
-            raise TypeError("Only tags (string) and elements (FomodElement)"
-                            " are accepted as arguments.")
-
         schema_elem, self_copy = self._setup_shallow_schema_and_self()
 
         test_elem = etree.Element(tag)
@@ -732,10 +723,69 @@ class FomodElement(etree.ElementBase):
 
         Returns:
             bool: Whether the child can be added or not.
+
+        Raises:
+            TypeError: If child is neither a string nor FomodElement.
+
+        Warning:
+            This method and its corresponding :func:`~FomodElement.add_child`
+            can both possibly be performance heavy on elements with large
+            numbers of children.
+
+            It is therefore recommended to use this pattern::
+
+                try:
+                    element.add_child(child)
+                except ValueError:
+                    pass
+
+            Instead of::
+
+                if element.can_add_child(child):
+                    element.add_child(child)
         """
-        if self._find_possible_index(child) is None:
+        tag = ""
+        if isinstance(child, str):
+            tag = child
+        elif isinstance(child, FomodElement):
+            tag = child.tag
+        else:
+            raise TypeError("Only tags (string) and elements (FomodElement)"
+                            " are accepted as arguments.")
+
+        if self._find_possible_index(tag) is None:
             return False
         return True
+
+    def add_child(self, child):
+        """
+        Adds a child to this element.
+
+        Args:
+            child (str or FomodElement): The tag or the actual child to add.
+
+        Raises:
+            TypeError: If child is neither a string nor FomodElement.
+            ValueError: If the child cannot be added to this element.
+        """
+        tag = ""
+        child_is_tag = False
+        if isinstance(child, str):
+            tag = child
+            child_is_tag = True
+        elif isinstance(child, FomodElement):
+            tag = child.tag
+        else:
+            raise TypeError("Only tags (string) and elements (FomodElement)"
+                            " are accepted as arguments.")
+
+        index = self._find_possible_index(tag)
+        if index is None:
+            raise ValueError("child argument cannot be added to this element.")
+
+        if child_is_tag:
+            child = etree.SubElement(self, tag)
+        self.insert(index, child)
 
     def can_remove_child(self, child):
         """

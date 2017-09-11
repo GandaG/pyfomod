@@ -368,7 +368,9 @@ class Test_FomodElement:
                                   "<xs:element name='elem' type='elemtype'/>"
                                   "<xs:complexType name='elemtype'>"
                                   "<xs:sequence>"
-                                  "<xs:element name='child1'/>"
+                                  "<xs:element name='child1'>"
+                                  "<xs:complexType/>"
+                                  "</xs:element>"
                                   "<xs:element name='child2'/>"
                                   "<xs:element name='child3'/>"
                                   "</xs:sequence>"
@@ -382,6 +384,7 @@ class Test_FomodElement:
         etree.SubElement(elem, 'child2')
         etree.SubElement(elem, 'child3')
         result = elem._setup_shallow_schema_and_self()
+        schema[1][0][0].remove(schema[1][0][0][0])
         assert_elem_eq(result[0], schema)
         assert_elem_eq(result[1], elem)
 
@@ -407,13 +410,6 @@ class Test_FomodElement:
         assert_elem_eq(result[0], schema)
         assert_elem_eq(result[1], elem)
 
-    def test_find_possible_index_typerror(self):
-        test_func = parser.FomodElement._find_possible_index
-        with pytest.raises(TypeError):
-            # the second arg is any type other than string or FomodElement
-            mock_self = mock.Mock(spec=parser.FomodElement)
-            test_func(mock_self, 0)
-
     def test_find_possible_index_none(self):
         test_func = parser.FomodElement._find_possible_index
         test_tag = 'test'
@@ -427,10 +423,6 @@ class Test_FomodElement:
         mock_self = mock.MagicMock(spec=parser.FomodElement)
         mock_self._setup_shallow_schema_and_self.return_value = (schema, elem)
         assert test_func(mock_self, test_tag) is None
-        with mock.patch('pyfomod.parser.FomodElement._init'):
-            f_elem = parser.FomodElement()
-            f_elem.tag = test_tag
-            assert test_func(mock_self, f_elem) is None
 
     def test_find_possible_index_last(self):
         test_func = parser.FomodElement._find_possible_index
@@ -451,13 +443,6 @@ class Test_FomodElement:
         mock_self = mock.MagicMock(spec=parser.FomodElement)
         mock_self._setup_shallow_schema_and_self.return_value = (schema, elem)
         assert test_func(mock_self, test_tag) == -1
-        # a reset is needed because elem was modified
-        elem = etree.Element('elem')
-        mock_self._setup_shallow_schema_and_self.return_value = (schema, elem)
-        with mock.patch('pyfomod.parser.FomodElement._init'):
-            f_elem = parser.FomodElement()
-            f_elem.tag = test_tag
-            assert test_func(mock_self, f_elem) == -1
 
     def test_find_possible_index_mid(self):
         test_func = parser.FomodElement._find_possible_index
@@ -480,21 +465,46 @@ class Test_FomodElement:
         mock_self = mock.MagicMock(spec=parser.FomodElement)
         mock_self._setup_shallow_schema_and_self.return_value = (schema, elem)
         assert test_func(mock_self, test_tag) == 1
-        # a reset is needed because elem was modified
-        elem = etree.Element('elem')
-        etree.SubElement(elem, 'child1')
-        etree.SubElement(elem, 'child3')
-        mock_self._setup_shallow_schema_and_self.return_value = (schema, elem)
-        with mock.patch('pyfomod.parser.FomodElement._init'):
-            f_elem = parser.FomodElement()
-            f_elem.tag = test_tag
-            assert test_func(mock_self, f_elem) == 1
+
+    def test_can_add_child_typerror(self):
+        test_func = parser.FomodElement.can_add_child
+        with pytest.raises(TypeError):
+            # the second arg is any type other than string or FomodElement
+            mock_self = mock.Mock(spec=parser.FomodElement)
+            test_func(mock_self, 0)
 
     def test_can_add_child(self):
-        info = etree.fromstring("<fomod><Name/></fomod>",
-                                parser=parser.FOMOD_PARSER)
-        assert info.can_add_child('Author')
-        assert not info.can_add_child('Name')
+        test_func = parser.FomodElement.can_add_child
+        mock_self = mock.Mock(spec=parser.FomodElement)
+        # Any value will work for this return_value
+        mock_self._find_possible_index.return_value = 0
+        mock_child = mock.Mock(spec=parser.FomodElement)
+        assert test_func(mock_self, mock_child)
+        mock_tag = mock.Mock(spec=str)
+        mock_self._find_possible_index.return_value = None
+        assert not test_func(mock_self, mock_tag)
+
+    def test_add_child_error(self):
+        test_func = parser.FomodElement.add_child
+        mock_self = mock.Mock(spec=parser.FomodElement)
+        with pytest.raises(TypeError):
+            test_func(mock_self, 0)
+        mock_self._find_possible_index.return_value = None
+        mock_child = mock.Mock(spec=parser.FomodElement)
+        with pytest.raises(ValueError):
+            test_func(mock_self, mock_child)
+
+    @mock.patch('lxml.etree.SubElement')
+    def test_add_child_str(self, mock_subelem):
+        test_func = parser.FomodElement.add_child
+        mock_self = mock.MagicMock(spec=parser.FomodElement)
+        mock_tag = mock.Mock(spec=str)
+        test_func(mock_self, mock_tag)
+        mock_self._find_possible_index.assert_called_once_with(mock_tag)
+        mock_subelem.assert_called_once_with(mock_self, mock_tag)
+        fpi_ret = mock_self._find_possible_index.return_value
+        subelem_ret = mock_subelem.return_value
+        mock_self.insert.assert_called_once_with(fpi_ret, subelem_ret)
 
     def test_can_remove_child_error(self):
         test_func = parser.FomodElement.can_remove_child
