@@ -597,6 +597,21 @@ class Test_FomodElement:
         mock_self.index.return_value = 0
         assert test_func(mock_self, mock_old, mock_new)
 
+    def test_replace_child_error(self):
+        test_func = parser.FomodElement.replace_child
+        mock_self = mock.Mock(spec=parser.FomodElement)
+        mock_self.can_replace_child.return_value = False
+        with pytest.raises(ValueError):
+            test_func(mock_self, 0, 0)
+
+    def test_replace_child_normal(self):
+        test_func = parser.FomodElement.replace_child
+        mock_self = mock.Mock(spec=parser.FomodElement)
+        mock_self.can_replace_child.return_value = True
+        test_func(mock_self, 0, 1)
+        mock_self.can_replace_child.assert_called_once_with(0, 1)
+        mock_self.replace.assert_called_once_with(0, 1)
+
     def test_can_copy_child_error(self):
         test_func = parser.FomodElement.can_copy_child
         with pytest.raises(TypeError):
