@@ -749,6 +749,10 @@ class FomodElement(etree.ElementBase):
             tag = child
         elif isinstance(child, FomodElement):
             tag = child.tag
+            parent = child.getparent()
+            print(parent, parent.can_remove_child(child))
+            if parent is not None and not parent.can_remove_child(child):
+                return False
         else:
             raise TypeError("Only tags (string) and elements (FomodElement)"
                             " are accepted as arguments.")
@@ -760,6 +764,9 @@ class FomodElement(etree.ElementBase):
     def add_child(self, child):
         """
         Adds a child to this element.
+
+        If *child* is a :class:`FomodElement` and it has a parent element then
+        it is first removed using :func:`~FomodElement.remove_child`.
 
         Args:
             child (str or FomodElement): The tag or the actual child to add.
@@ -785,6 +792,10 @@ class FomodElement(etree.ElementBase):
 
         if child_is_tag:
             child = etree.SubElement(self, tag)
+        else:
+            parent = child.getparent()
+            if parent is not None:
+                parent.remove_child(child)
         self.insert(index, child)
 
     def can_remove_child(self, child):
@@ -848,10 +859,12 @@ class FomodElement(etree.ElementBase):
         if not (isinstance(old_child, FomodElement) or
                 isinstance(new_child, FomodElement)):
             raise TypeError("child arguments must be a FomodElement.")
-        elif (old_child not in self or
-              new_child not in self):
+        elif old_child not in self:
             raise ValueError("child argument is not a child of this element.")
 
+        parent = new_child.getparent()
+        if parent is not None and not parent.can_remove_child(new_child):
+            return False
         index = self.index(old_child)
         schema_elem, self_copy = self._setup_shallow_schema_and_self()
         self_copy.replace(self_copy[index], etree.Element(new_child.tag))
@@ -861,6 +874,9 @@ class FomodElement(etree.ElementBase):
     def replace_child(self, old_child, new_child):
         """
         Replaces *old_child* with *new_child*.
+
+        If *new_child* is a :class:`FomodElement` and it has a parent element
+        then it is first removed using :func:`~FomodElement.remove_child`.
 
         Args:
             old_child (FomodElement): The child element to replace.
@@ -872,51 +888,12 @@ class FomodElement(etree.ElementBase):
             ValueError: If old_child can't be replaced by new_child.
         """
         if self.can_replace_child(old_child, new_child):
+            parent = new_child.getparent()
+            if parent is not None:
+                parent.remove_child(new_child)
             self.replace(old_child, new_child)
         else:
             raise ValueError("old_child cannot be replaced by new_child")
-
-    def can_copy_child(self, child, new_parent):
-        """
-        Checks if a given child can be copied to a different parent
-        while maintaining validity.
-
-        Args:
-            child (FomodElement): The child element to copy.
-            new_parent (FomodElement): The element where the copy
-                will be inserted.
-
-        Returns:
-            bool: Whether the child can be copied.
-        """
-        if not (isinstance(child, FomodElement) or
-                isinstance(new_parent, FomodElement)):
-            raise TypeError("Arguments must be a FomodElement.")
-        elif child not in self:
-            raise ValueError("child argument is not a child of this element.")
-
-        return new_parent.can_add_child(child)
-
-    def can_move_child(self, child, new_parent):
-        """
-        Checks if a given child can be moved to a different parent
-        while maintaining validity.
-
-        Args:
-            child (FomodElement): The child element to move.
-            new_parent (FomodElement): The element where the child
-                will be inserted.
-
-        Returns:
-            bool: Whether the child can be moved.
-        """
-        if not (isinstance(child, FomodElement) or
-                isinstance(new_parent, FomodElement)):
-            raise TypeError("Arguments must be a FomodElement.")
-        elif child not in self:
-            raise ValueError("child argument is not a child of this element.")
-
-        return new_parent.can_add_child(child) and self.can_remove_child(child)
 
     def __copy__(self):
         return self.__deepcopy__(None)

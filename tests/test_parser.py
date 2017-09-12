@@ -478,8 +478,15 @@ class Test_FomodElement:
         mock_self = mock.Mock(spec=parser.FomodElement)
         # Any value will work for this return_value
         mock_self._find_possible_index.return_value = 0
+        mock_parent = mock.Mock(spec=parser.FomodElement)
         mock_child = mock.Mock(spec=parser.FomodElement)
+        mock_child.getparent.return_value = mock_parent
+        mock_parent.can_remove_child = lambda x: True \
+            if x is mock_child else False
         assert test_func(mock_self, mock_child)
+        mock_parent.can_remove_child = lambda x: False \
+            if x is mock_child else True
+        assert not test_func(mock_self, mock_child)
         mock_tag = mock.Mock(spec=str)
         mock_self._find_possible_index.return_value = None
         assert not test_func(mock_self, mock_tag)
@@ -505,6 +512,18 @@ class Test_FomodElement:
         fpi_ret = mock_self._find_possible_index.return_value
         subelem_ret = mock_subelem.return_value
         mock_self.insert.assert_called_once_with(fpi_ret, subelem_ret)
+
+    def test_add_child_elem(self):
+        test_func = parser.FomodElement.add_child
+        mock_self = mock.MagicMock(spec=parser.FomodElement)
+        mock_child = mock.Mock(spec=parser.FomodElement)
+        test_func(mock_self, mock_child)
+        mock_self._find_possible_index.assert_called_once_with(mock_child.tag)
+        mock_child.getparent.assert_called_once()
+        parent = mock_child.getparent.return_value
+        parent.remove_child.assert_called_once_with(mock_child)
+        fpi_ret = mock_self._find_possible_index.return_value
+        mock_self.insert.assert_called_once_with(fpi_ret, mock_child)
 
     def test_can_remove_child_error(self):
         test_func = parser.FomodElement.can_remove_child
@@ -592,10 +611,16 @@ class Test_FomodElement:
         mock_new.tag = 'child2'
         mock_self = mock.MagicMock(spec=parser.FomodElement)
         mock_self.__contains__ = lambda y, x: True \
-            if x in (mock_old, mock_new) else False
+            if x is mock_old else False
         mock_self._setup_shallow_schema_and_self.return_value = (schema, elem)
         mock_self.index.return_value = 0
+        mock_new.getparent.return_value = None
         assert test_func(mock_self, mock_old, mock_new)
+        mock_parent = mock.Mock(spec=parser.FomodElement)
+        mock_new.getparent.return_value = mock_parent
+        mock_parent.can_remove_child = lambda x: False \
+            if x is mock_new else True
+        assert not test_func(mock_self, mock_old, mock_new)
 
     def test_replace_child_error(self):
         test_func = parser.FomodElement.replace_child
@@ -608,52 +633,13 @@ class Test_FomodElement:
         test_func = parser.FomodElement.replace_child
         mock_self = mock.Mock(spec=parser.FomodElement)
         mock_self.can_replace_child.return_value = True
-        test_func(mock_self, 0, 1)
-        mock_self.can_replace_child.assert_called_once_with(0, 1)
-        mock_self.replace.assert_called_once_with(0, 1)
-
-    def test_can_copy_child_error(self):
-        test_func = parser.FomodElement.can_copy_child
-        with pytest.raises(TypeError):
-            # second arg is anything but FomodElement
-            mock_self = mock.Mock(spec=parser.FomodElement)
-            test_func(mock_self, 0, 0)
-        mock_self = mock.MagicMock(spec=parser.FomodElement)
-        mock_child = mock.MagicMock(spec=parser.FomodElement)
-        with pytest.raises(ValueError):
-            test_func(mock_self, mock_child, None)
-
-    def test_can_copy_child_normal(self):
-        test_func = parser.FomodElement.can_copy_child
-        mock_child = mock.MagicMock(spec=parser.FomodElement)
-        mock_self = mock.MagicMock(spec=parser.FomodElement)
-        mock_self.__contains__ = lambda y, x: True \
-            if x is mock_child else False
-        mock_parent = mock.MagicMock(spec=parser.FomodElement)
-        mock_parent.can_add_child.return_value = True
-        assert test_func(mock_self, mock_child, mock_parent)
-
-    def test_can_move_child_error(self):
-        test_func = parser.FomodElement.can_move_child
-        with pytest.raises(TypeError):
-            # second arg is anything but FomodElement
-            mock_self = mock.Mock(spec=parser.FomodElement)
-            test_func(mock_self, 0, 0)
-        mock_self = mock.MagicMock(spec=parser.FomodElement)
-        mock_child = mock.MagicMock(spec=parser.FomodElement)
-        with pytest.raises(ValueError):
-            test_func(mock_self, mock_child, None)
-
-    def test_can_move_child_normal(self):
-        test_func = parser.FomodElement.can_move_child
-        mock_child = mock.MagicMock(spec=parser.FomodElement)
-        mock_self = mock.MagicMock(spec=parser.FomodElement)
-        mock_self.__contains__ = lambda y, x: True \
-            if x is mock_child else False
-        mock_self.can_remove_child.return_value = True
-        mock_parent = mock.MagicMock(spec=parser.FomodElement)
-        mock_parent.can_add_child.return_value = True
-        assert test_func(mock_self, mock_child, mock_parent)
+        mock_new = mock.Mock(spec=parser.FomodElement)
+        test_func(mock_self, 0, mock_new)
+        mock_self.can_replace_child.assert_called_once_with(0, mock_new)
+        mock_new.getparent.assert_called_once()
+        parent = mock_new.getparent.return_value
+        parent.remove_child.assert_called_once_with(mock_new)
+        mock_self.replace.assert_called_once_with(0, mock_new)
 
     def test_copy(self):
         root = etree.fromstring("<fomod attr='1'>text</fomod>",
