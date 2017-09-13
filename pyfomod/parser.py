@@ -773,6 +773,26 @@ class FomodElement(etree.ElementBase):
             return False
         return True
 
+    def _setup_new_element(self):
+        """
+        Sets up a newly created element (self) by adding the required
+        attributes and any required children (bypass validation checks).
+        """
+        for attr in self.required_attributes():
+            if attr.default is not None:
+                self.set_attribute(attr.name, attr.default)
+            elif (attr.restriction is not None and
+                  'enumeration' in attr.restriction.type):
+                self.set_attribute(attr.name,
+                                   attr.restriction.enum_list[0].value)
+            else:
+                self.set_attribute(attr.name, '')
+
+        for elem in self.required_children():
+            for _ in range(0, elem[1]):
+                child = etree.SubElement(self, elem[0])
+                child._setup_new_element()
+
     def add_child(self, child):
         """
         Adds a child to this element.
@@ -804,6 +824,7 @@ class FomodElement(etree.ElementBase):
 
         if child_is_tag:
             child = etree.SubElement(self, tag)
+            child._setup_new_element()
         else:
             parent = child.getparent()
             if parent is not None:

@@ -506,16 +506,59 @@ class Test_FomodElement:
             test_func(mock_self, mock_child)
 
     @mock.patch('lxml.etree.SubElement')
+    def test_setup_new_element(self, mock_subelem):
+        test_func = parser.FomodElement._setup_new_element
+        mock_self = mock.Mock(spec=parser.FomodElement)
+        attr_rest = parser._AttrRestriction('enumeration',
+                                            [parser._AttrRestElement('enum',
+                                                                     None)],
+                                            *[None] * 10)
+        req_attr = [parser._Attribute('attr_default',
+                                      None,
+                                      'default',
+                                      None,
+                                      'required',
+                                      None),
+                    parser._Attribute('attr_rest',
+                                      None,
+                                      None,
+                                      None,
+                                      'required',
+                                      attr_rest),
+                    parser._Attribute('attr_none',
+                                      None,
+                                      None,
+                                      None,
+                                      'required',
+                                      None)]
+        mock_self.required_attributes.return_value = req_attr
+        mock_self.required_children.return_value = [('child1', 1),
+                                                    ('child2', 7),
+                                                    ('child3', 2)]
+        test_func(mock_self)
+        attr_calls = [mock.call('attr_default', 'default'),
+                      mock.call('attr_rest', 'enum'),
+                      mock.call('attr_none', '')]
+        mock_self.set_attribute.assert_has_calls(attr_calls)
+        setup_calls = [mock.call()._setup_new_element()] * 10
+        subelem_calls = ([mock.call(mock_self, 'child1')] +
+                         [mock.call(mock_self, 'child2')] * 7 +
+                         [mock.call(mock_self, 'child3')] * 2)
+        child_calls = [j for i in zip(subelem_calls, setup_calls) for j in i]
+        mock_subelem.assert_has_calls(child_calls)
+
+    @mock.patch('lxml.etree.SubElement')
     def test_add_child_str(self, mock_subelem):
         test_func = parser.FomodElement.add_child
         mock_self = mock.MagicMock(spec=parser.FomodElement)
         mock_tag = mock.Mock(spec=str)
+        mock_child = mock_subelem.return_value
         test_func(mock_self, mock_tag)
         mock_self._find_possible_index.assert_called_once_with(mock_tag)
         mock_subelem.assert_called_once_with(mock_self, mock_tag)
+        mock_child._setup_new_element.assert_called_once()
         fpi_ret = mock_self._find_possible_index.return_value
-        subelem_ret = mock_subelem.return_value
-        mock_self.insert.assert_called_once_with(fpi_ret, subelem_ret)
+        mock_self.insert.assert_called_once_with(fpi_ret, mock_child)
 
     def test_add_child_elem(self):
         test_func = parser.FomodElement.add_child
