@@ -365,7 +365,8 @@ class Test_FomodElement:
     @mock.patch('pyfomod.parser.FomodElement._init')
     def test_setup_shallow_schema_and_self_complex_separate(self, mock_init):
         schema = etree.fromstring("<xs:schema xmlns:xs='a'>"
-                                  "<xs:element name='elem' type='elemtype'/>"
+                                  "<xs:element name='elem' type='elemtype' "
+                                  "minOccurs='1'/>"
                                   "<xs:complexType name='elemtype'>"
                                   "<xs:sequence>"
                                   "<xs:element name='child1'>"
@@ -374,6 +375,7 @@ class Test_FomodElement:
                                   "<xs:element name='child2'/>"
                                   "<xs:element name='child3'/>"
                                   "</xs:sequence>"
+                                  "<xs:attribute name='a' type='xs:string'/>"
                                   "</xs:complexType>"
                                   "</xs:schema>")
         elem = parser.FomodElement()
@@ -384,7 +386,9 @@ class Test_FomodElement:
         etree.SubElement(elem, 'child2')
         etree.SubElement(elem, 'child3')
         result = elem._setup_shallow_schema_and_self()
+        del schema[0].attrib['minOccurs']
         schema[1][0][0].remove(schema[1][0][0][0])
+        schema[1].remove(schema[1][1])
         assert_elem_eq(result[0], schema)
         assert_elem_eq(result[1], elem)
 

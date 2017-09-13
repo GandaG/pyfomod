@@ -581,8 +581,12 @@ class FomodElement(etree.ElementBase):
         order_indicators = ['all', 'sequence', 'choice']
 
         first_exp = 'xs:group | xs:all | xs:sequence | xs:choice'
-        first = self._schema_type.xpath(first_exp,
-                                        namespaces=self._schema.nsmap)[0]
+        try:
+            first = self._schema_type.xpath(first_exp,
+                                            namespaces=self._schema.nsmap)[0]
+        except IndexError:
+            # no children exist
+            return None
 
         if first.tag == '{}group'.format(nsmap):
             first = self._get_order_from_group(first, self._schema)
@@ -669,15 +673,20 @@ class FomodElement(etree.ElementBase):
                                     nsmap=self._schema_element.nsmap)
 
         schema_type = deepcopy(self._schema_element)
+        schema_type.attrib.pop('maxOccurs', None)
+        schema_type.attrib.pop('minOccurs', None)
+        schema_type.attrib.pop('ref', None)
         schema_elem.append(schema_type)
         if self._schema_element.get('type') is not None:
             schema_type = deepcopy(self._schema_type)
             schema_elem.append(schema_type)
 
         if self._schema_element is not self._schema_type:
-            for elem in schema_type.iter(tag='{*}element'):
+            for elem in schema_type.iter('{*}element', '{*}attribute'):
                 if elem is schema_type:
                     continue
+                elif 'attribute' in elem.tag:
+                    elem.getparent().remove(elem)
                 elem.attrib.pop('type', None)
                 for grandchild in elem:
                     elem.remove(grandchild)
