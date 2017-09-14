@@ -830,6 +830,8 @@ class FomodElement(etree.ElementBase):
             if parent is not None:
                 parent.remove_child(child)
         self.insert(index, child)
+        if child._comment is not None:
+            self.insert(index, child._comment)
 
     def can_remove_child(self, child):
         """
@@ -869,6 +871,8 @@ class FomodElement(etree.ElementBase):
             InvalidArgument: If child cannot be removed from this element.
         """
         if self.can_remove_child(child):
+            if child._comment is not None:
+                self.remove(child._comment)
             self.remove(child)
         else:
             raise InvalidArgument()
@@ -923,6 +927,11 @@ class FomodElement(etree.ElementBase):
             parent = new_child.getparent()
             if parent is not None:
                 parent.remove_child(new_child)
+            index = self.index(old_child)
+            if old_child._comment is not None:
+                self.remove(old_child._comment)
+            if new_child._comment is not None:
+                self.insert(index, new_child._comment)
             self.replace(old_child, new_child)
         else:
             raise InvalidArgument()
@@ -943,6 +952,7 @@ class FomodElement(etree.ElementBase):
                                          nsmap=self.nsmap)
             parent.remove(copy_elem)
 
+        copy_elem._comment = deepcopy(self._comment)
         copy_elem.text = self.text
         copy_elem.tail = self.tail
 

@@ -553,6 +553,7 @@ class Test_FomodElement:
         mock_self = mock.MagicMock(spec=parser.FomodElement)
         mock_tag = mock.Mock(spec=str)
         mock_child = mock_subelem.return_value
+        mock_child._comment = None
         test_func(mock_self, mock_tag)
         mock_self._find_possible_index.assert_called_once_with(mock_tag)
         mock_subelem.assert_called_once_with(mock_self, mock_tag)
@@ -564,13 +565,16 @@ class Test_FomodElement:
         test_func = parser.FomodElement.add_child
         mock_self = mock.MagicMock(spec=parser.FomodElement)
         mock_child = mock.Mock(spec=parser.FomodElement)
+        mock_child._comment = mock.Mock(spec=etree._Comment)
         test_func(mock_self, mock_child)
         mock_self._find_possible_index.assert_called_once_with(mock_child.tag)
         mock_child.getparent.assert_called_once()
         parent = mock_child.getparent.return_value
         parent.remove_child.assert_called_once_with(mock_child)
         fpi_ret = mock_self._find_possible_index.return_value
-        mock_self.insert.assert_called_once_with(fpi_ret, mock_child)
+        insert_calls = [mock.call(fpi_ret, mock_child),
+                        mock.call(fpi_ret, mock_child._comment)]
+        mock_self.insert.call_list(insert_calls)
 
     def test_can_remove_child_error(self):
         test_func = parser.FomodElement.can_remove_child
@@ -620,9 +624,13 @@ class Test_FomodElement:
         test_func = parser.FomodElement.remove_child
         mock_self = mock.Mock(spec=parser.FomodElement)
         mock_self.can_remove_child.return_value = True
-        test_func(mock_self, 0)
-        mock_self.can_remove_child.assert_called_once_with(0)
-        mock_self.remove.assert_called_once_with(0)
+        mock_child = mock.Mock(spec=parser.FomodElement)
+        mock_comment = mock_child._comment = mock.Mock(spec=etree._Comment)
+        test_func(mock_self, mock_child)
+        mock_self.can_remove_child.assert_called_once_with(mock_child)
+        remove_calls = [mock.call(mock_comment),
+                        mock.call(mock_self)]
+        mock_self.remove.call_list == remove_calls
 
     def test_can_replace_child_error(self):
         test_func = parser.FomodElement.can_replace_child
@@ -680,56 +688,50 @@ class Test_FomodElement:
         test_func = parser.FomodElement.replace_child
         mock_self = mock.Mock(spec=parser.FomodElement)
         mock_self.can_replace_child.return_value = True
+        mock_old = mock.Mock(spec=parser.FomodElement)
+        mock_old._comment = mock.Mock(spec=etree._Comment)
         mock_new = mock.Mock(spec=parser.FomodElement)
-        test_func(mock_self, 0, mock_new)
-        mock_self.can_replace_child.assert_called_once_with(0, mock_new)
+        mock_new._comment = mock.Mock(spec=etree._Comment)
+        test_func(mock_self, mock_old, mock_new)
+        mock_self.can_replace_child.assert_called_once_with(mock_old, mock_new)
         mock_new.getparent.assert_called_once()
         parent = mock_new.getparent.return_value
         parent.remove_child.assert_called_once_with(mock_new)
-        mock_self.replace.assert_called_once_with(0, mock_new)
+        mock_self.remove.assert_called_once_with(mock_old._comment)
+        mock_self.insert.assert_called_once_with(mock_self.index.return_value,
+                                                 mock_new._comment)
+        mock_self.replace.assert_called_once_with(mock_old, mock_new)
 
     def test_copy(self):
         root = etree.fromstring("<fomod attr='1'>text</fomod>",
                                 parser=parser.FOMOD_PARSER)
         root_copy = copy(root)
         root_deep = deepcopy(root)
-        assert root.tag == root_copy.tag == root_deep.tag
-        assert root.text == root_copy.text == root_deep.text
-        assert root.tail == root_copy.tail == root_deep.tail
-        assert root.nsmap == root_copy.nsmap == root_deep.nsmap
-        assert root.attrib == root_copy.attrib == root_deep.attrib
+        assert_elem_eq(root, root_copy)
+        assert_elem_eq(root, root_deep)
+        assert_elem_eq(root_copy, root_deep)
 
     def test_deepcopy_root(self):
         root = etree.fromstring("<fomod attr='1'/>",
                                 parser=parser.FOMOD_PARSER)
         root_copy = deepcopy(root)
-        assert root.tag == root_copy.tag
-        assert root.text == root_copy.text
-        assert root.tail == root_copy.tail
-        assert root.nsmap == root_copy.nsmap
-        assert root.attrib == root_copy.attrib
+        assert_elem_eq(root, root_copy)
 
     def test_deepcopy_child(self):
         child = etree.fromstring("<fomod><Name>text</Name>tail</fomod>",
                                  parser=parser.FOMOD_PARSER)[0]
         child_copy = deepcopy(child)
-        assert child.tag == child_copy.tag
-        assert child.text == child_copy.text
-        assert child.tail == child_copy.tail
-        assert child.nsmap == child_copy.nsmap
-        assert child.attrib == child_copy.attrib
+        assert_elem_eq(child, child_copy)
 
     def test_deepcopy_children(self):
-        root = etree.fromstring("<fomod><Name/><Author/><Version/></fomod>",
+        root = etree.fromstring("<fomod><Name/>"
+                                "<!--comment--><Author/>"
+                                "<Version/></fomod>",
                                 parser=parser.FOMOD_PARSER)
         root_copy = deepcopy(root)
         assert len(root) == len(root_copy)
         for index in range(0, len(root)):
-            assert root[index].tag == root_copy[index].tag
-            assert root[index].text == root_copy[index].text
-            assert root[index].tail == root_copy[index].tail
-            assert root[index].nsmap == root_copy[index].nsmap
-            assert root[index].attrib == root_copy[index].attrib
+            assert_elem_eq(root[index], root_copy[index])
 
 
 class Test_FomodLookup:
