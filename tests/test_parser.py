@@ -12,6 +12,14 @@ from pyfomod import parser, exceptions
 fomod_schema = pyfomod.FOMOD_SCHEMA_TREE
 
 
+class ElementTest(etree.ElementBase):
+    """
+    Use this class instead of simple etree.Element elements.
+    This way you can add attributes to instances as you wish.
+    """
+    pass
+
+
 def assert_elem_eq(e1, e2):
     if (e1.tag != e2.tag or
             e1.text != e2.text or
@@ -69,25 +77,40 @@ class Test_FomodElement:
         version = simple_parse[0][5]
         assert version.type == 'string'
 
-    def test_comment_get_none(self, simple_parse):
-        name = simple_parse[1][0]
-        assert name.comment == ""
+    def test_comment_get_none(self):
+        test_func = parser.FomodElement.comment.fget
+        elem = ElementTest()
+        elem._comment = None
+        assert test_func(elem) == ""
 
-    def test_comment_get_normal(self, simple_parse):
-        name = simple_parse[0][1]
-        assert name.comment == " The name of the mod "
+    def test_comment_get_normal(self):
+        test_func = parser.FomodElement.comment.fget
+        elem = ElementTest()
+        elem._comment = etree.Comment('comment')
+        assert test_func(elem) == "comment"
 
-    def test_comment_set_none(self, conf_tree):
-        name = conf_tree[0]
-        assert name._comment is None
-        name.comment = "comment"
-        assert name.comment == "comment"
+    def test_comment_set_none(self):
+        test_func = parser.FomodElement.comment.fset
+        parent = ElementTest()
+        elem = ElementTest()
+        parent.append(elem)
+        elem._comment = None
+        test_func(elem, None)
+        assert elem._comment is None
+        elem._comment = etree.Comment('comment')
+        parent.insert(0, elem._comment)
+        test_func(elem, None)
+        assert elem._comment is None
 
-    def test_comment_set_normal(self, info_tree):
-        name = info_tree[1]
-        assert name.comment == " The name of the mod "
-        name.comment = "comment"
-        assert name.comment == "comment"
+    def test_comment_set_normal(self):
+        test_func = parser.FomodElement.comment.fset
+        elem = ElementTest()
+        elem._comment = None
+        test_func(elem, "comment")
+        assert elem._comment.text == "comment"
+        elem._comment = etree.Comment('comment')
+        test_func(elem, "test")
+        assert elem._comment.text == "test"
 
     def test_doc_normal(self, simple_parse):
         config = simple_parse[1]

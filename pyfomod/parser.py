@@ -154,6 +154,7 @@ class FomodElement(etree.ElementBase):
         str:
             The text of this element' comment.
             If no comment exists when setting new text, a comment is created.
+            If this is set to :class:`None` the comment is deleted.
         """
         if self._comment is None:
             return ""
@@ -162,10 +163,21 @@ class FomodElement(etree.ElementBase):
     @comment.setter
     def comment(self, text):
         if self._comment is None:
+            if text is None:
+                return
             self.addprevious(etree.Comment(text))
 
             # pylint: disable=attribute-defined-outside-init
             self._comment = self.getprevious()
+        elif text is None:
+            if self.getparent() is not None:
+                self.getparent().remove(self._comment)
+            # if comment is at top level then just make it None,
+            # makes no difference
+            self._comment.text = None
+            # pylint: disable=attribute-defined-outside-init
+            # this is needed to lose the reference to the comment.
+            self._comment = None
         else:
             self._comment.text = text
 
