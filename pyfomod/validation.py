@@ -17,14 +17,15 @@ This module holds all functions needed to validate and check the
 installer for errors.
 """
 
+import collections
 import os
+from abc import ABCMeta, abstractmethod
 
 from lxml import etree
 
 import pyfomod
 
 from .io import get_installer_files
-from .parser import Root
 
 FOMOD_SCHEMA = etree.XMLSchema(pyfomod.FOMOD_SCHEMA_TREE)
 
@@ -75,54 +76,204 @@ def validate(tree):
     return FOMOD_SCHEMA.validate(tree)
 
 
-ERROR_LIST = []
+ERROR_DICT = {}
 
 
-class ErrorChecker(object):
+_FomodError = collections.namedtuple('_FomodError', 'line title msg tag')
+"""
+This ``namedtuple`` represents an error.
+
+Attributes:
+    line (int): The line at which the error occured.
+    title (str): The error's title.
+    msg (str): A message explaining the error.
+    tag (str): The tag of the element at which the error occured.
+"""
+
+
+class _MetaErrorChecker(ABCMeta):
+    """
+    Metaclass used to auto-register error checker subclasses.
+    User-defined subclasses outside of this module are defined after and so
+    can replace these subclasses.
+    """
+    def __init__(cls, clsname, bases, attrs):
+        super(_MetaErrorChecker, cls).__init__(clsname, bases, attrs)
+        if clsname != 'ErrorChecker':
+            ERROR_DICT[clsname] = cls
+
+
+class ErrorChecker(object, metaclass=_MetaErrorChecker):
     """
     Base class for error checking.
     Used by *check_for_errors* function.
     Subclasses should fill in all relevant fields.
     """
 
-    @staticmethod
-    def tag():
-        """
-        Should return a tuple/list of strings with
-        the tags that should be checked with the *run* method.
-        """
-        pass
+    def __init__(self):
+        super(ErrorChecker, self).__init__()
 
-    @staticmethod
-    def title():
-        """
-        Should return the title of the error.
-        """
-        pass
+        # this is defined in the base class since most subclasses will use it.
+        self.error_tag = None
 
-    @staticmethod
-    def error_string():
-        """
-        Should return the error string. A pair of braces {}
-        can be used if multiple tags need to be mentioned.
-        """
-        pass
-
-    @staticmethod
-    def needs_path():
+    @property
+    def needs_path(self):
         """
         Subclasses should only change this if they need to
         be passed a path to the installer in the *check* method.
+
+        Returns:
+            bool: Whether this class needs access to a physical path.
         """
         return False
 
     @staticmethod
-    def check(root, element, installer_path):
+    @abstractmethod
+    def tag():
+        """
+        Should return a tuple/list of strings with
+        the tags that should be checked with the *check* method.
+
+        Returns:
+            tuple(str):
+                A tuple of tags that should be checked
+                with :func:`~ErrorChecker.check`.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def title(self):
+        """
+        Should return the title of the error.
+
+        Returns:
+            str: The error title.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def error_string(self):
+        """
+        Should return the error string.
+
+        Returns:
+            str: A message explaining the error.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def check(self, root, element, installer_path):
         """
         The method that runs on the tags specified to check
-        for a specific error.
+        for a specific error. Subclasses should call :func:`super`
+
+        Args:
+            root (~pyfomod.parser.FomodElement):
+                The root of the tree being evaluated.
+            element (~pyfomod.parser.FomodElement):
+                The current element being evaluated.
+            installer_path (str): The path to the physical
+                package
+
+        Returns:
+            bool:
+                Should return True if the error occurs,
+                False otherwise.
         """
-        pass
+        self.error_tag = element.tag
+        return False
+
+
+class NoNameError(ErrorChecker):
+    """
+    Checks for installers with no Name specified.
+    """
+
+    @staticmethod
+    def tag():
+        return ('fomod',)
+
+    def title(self):
+        return "Installer With No Name"
+
+    def error_string(self):
+        return "The installer has no name specified."
+
+    def check(self, root, element, installer_path):
+        super().check(root, element, installer_path)
+        for child in element:
+            if child.tag == 'Name':
+                return False
+        return True
+
+
+class NoAuthorError(ErrorChecker):
+    """
+    Checks for installers with no Author specified.
+    """
+
+    @staticmethod
+    def tag():
+        return ('fomod',)
+
+    def title(self):
+        return "Unsigned Installer"
+
+    def error_string(self):
+        return "The installer has no author specified."
+
+    def check(self, root, element, installer_path):
+        super().check(root, element, installer_path)
+        for child in element:
+            if child.tag == 'Author':
+                return False
+        return True
+
+
+class NoVersionError(ErrorChecker):
+    """
+    Checks for installers with no Version specified.
+    """
+
+    @staticmethod
+    def tag():
+        return ('fomod',)
+
+    def title(self):
+        return "Versionless Installer"
+
+    def error_string(self):
+        return "The installer has no version specified."
+
+    def check(self, root, element, installer_path):
+        super().check(root, element, installer_path)
+        for child in element:
+            if child.tag == 'Version':
+                return False
+        return True
+
+
+class NoWebsiteError(ErrorChecker):
+    """
+    Checks for installers with no Website specified.
+    """
+
+    @staticmethod
+    def tag():
+        return ('fomod',)
+
+    def title(self):
+        return "Offline Installer"
+
+    def error_string(self):
+        return "The installer has no website specified."
+
+    def check(self, root, element, installer_path):
+        super().check(root, element, installer_path)
+        for child in element:
+            if child.tag == 'Website':
+                return False
+        return True
 
 
 class EmptyInstError(ErrorChecker):
@@ -134,17 +285,14 @@ class EmptyInstError(ErrorChecker):
     def tag():
         return ('config',)
 
-    @staticmethod
-    def title():
+    def title(self):
         return "Empty Installer"
 
-    @staticmethod
-    def error_string():
+    def error_string(self):
         return "The installer is empty."
 
-    @staticmethod
-    def check(root, element, installer_path):
-        del root, installer_path
+    def check(self, root, element, installer_path):
+        super().check(root, element, installer_path)
         for child in element:
             if (child.tag == 'moduleDependencies' or
                     child.tag == 'requiredInstallFiles' or
@@ -152,9 +300,6 @@ class EmptyInstError(ErrorChecker):
                     child.tag == 'conditionalFileInstalls'):
                 return False
         return True
-
-
-ERROR_LIST.append(EmptyInstError)
 
 
 class EmptySourceError(ErrorChecker):
@@ -166,21 +311,81 @@ class EmptySourceError(ErrorChecker):
     def tag():
         return ('file', 'folder')
 
-    @staticmethod
-    def title():
+    def title(self):
         return "Empty Source Fields"
 
-    @staticmethod
-    def error_string():
-        return "The source folder(s) under the tag {} were empty."
+    def error_string(self):
+        return "The source folder(s) under " \
+               "the tag {} were empty.".format(self.error_tag)
 
-    @staticmethod
-    def check(root, element, installer_path):
-        del root, installer_path
+    def check(self, root, element, installer_path):
+        super().check(root, element, installer_path)
         return not element.get('source')
 
 
-ERROR_LIST.append(EmptySourceError)
+class UnusedFilesError(ErrorChecker):
+    """
+    Checks if there are any unused files in the package.
+    """
+
+    def __init__(self):
+        super(UnusedFilesError, self).__init__()
+        self.unused_files = []
+
+    @property
+    def needs_path(self):
+        return True
+
+    @staticmethod
+    def tag():
+        return ('config',)
+
+    def title(self):
+        return "Unused Files"
+
+    def error_string(self):
+        error = "The following file(s) are included within the package" \
+                " but are not used:"
+        for path in self.unused_files:
+            error += "\n    {}".format(path)
+        return error
+
+    def check(self, root, element, installer_path):
+        super().check(root, element, installer_path)
+
+        used_files = []
+        used_folders = []
+
+        for elem in element.iterfind('.//file'):
+            path = os.path.join(installer_path, elem.get('source'))
+            used_files.append(path)
+        for elem in element.iterfind('.//folder'):
+            path = os.path.join(installer_path, elem.get('source'))
+            used_folders.append(path)
+        for elem in element.iterfind('.//image'):
+            path = os.path.join(installer_path, elem.get('path'))
+            used_files.append(path)
+        for elem in element.iterfind('.//moduleImage'):
+            path = os.path.join(installer_path, elem.get('path'))
+            used_files.append(path)
+
+        try:
+            used_files.extend(get_installer_files(installer_path))
+        except IOError:
+            # in case no fomod folder exists
+            pass
+
+        for path, dnames, fnames in os.walk(installer_path):
+            for name in dnames:
+                if os.path.join(path, name) in used_folders:
+                    del dnames[dnames.index(name)]
+            for name in fnames:
+                if os.path.join(path, name) not in used_files:
+                    fpath = os.path.relpath(os.path.join(path, name),
+                                            installer_path)
+                    self.unused_files.append(fpath)
+
+        return self.unused_files
 
 
 class MissingFolderError(ErrorChecker):
@@ -192,29 +397,21 @@ class MissingFolderError(ErrorChecker):
     def tag():
         return ('folder',)
 
-    @staticmethod
-    def title():
+    def title(self):
         return "Missing Source Folders"
 
-    @staticmethod
-    def error_string():
+    def error_string(self):
         return "The source folder(s) under the tag {} weren't found " \
-               "inside the package."
+               "inside the package.".format(self.error_tag)
 
-    @staticmethod
-    def needs_path():
+    @property
+    def needs_path(self):
         return True
 
-    @staticmethod
-    def check(root, element, installer_path):
-        del root
-        if not element.get('source'):
-            return False
+    def check(self, root, element, installer_path):
+        super().check(root, element, installer_path)
         return not os.path.isdir(os.path.join(installer_path,
                                               element.get('source')))
-
-
-ERROR_LIST.append(MissingFolderError)
 
 
 class MissingFileError(ErrorChecker):
@@ -226,29 +423,21 @@ class MissingFileError(ErrorChecker):
     def tag():
         return ('file',)
 
-    @staticmethod
-    def title():
+    def title(self):
         return "Missing Source Files"
 
-    @staticmethod
-    def error_string():
+    def error_string(self):
         return "The source file(s) under the tag {} weren't found " \
-               "inside the package."
+               "inside the package.".format(self.error_tag)
 
-    @staticmethod
-    def needs_path():
+    @property
+    def needs_path(self):
         return True
 
-    @staticmethod
-    def check(root, element, installer_path):
-        del root
-        if not element.get('source'):
-            return False
+    def check(self, root, element, installer_path):
+        super().check(root, element, installer_path)
         return not os.path.isfile(os.path.join(installer_path,
                                                element.get('source')))
-
-
-ERROR_LIST.append(MissingFileError)
 
 
 class MissingImageError(ErrorChecker):
@@ -260,27 +449,21 @@ class MissingImageError(ErrorChecker):
     def tag():
         return ('moduleImage', 'image')
 
-    @staticmethod
-    def title():
+    def title(self):
         return "Missing Images"
 
-    @staticmethod
-    def error_string():
+    def error_string(self):
         return "The image(s) under the tag {} weren't " \
-               "found inside the package."
+               "found inside the package.".format(self.error_tag)
 
-    @staticmethod
-    def needs_path():
+    @property
+    def needs_path(self):
         return True
 
-    @staticmethod
-    def check(root, element, installer_path):
-        del root
+    def check(self, root, element, installer_path):
+        super().check(root, element, installer_path)
         return not os.path.isfile(os.path.join(installer_path,
                                                element.get('path')))
-
-
-ERROR_LIST.append(MissingImageError)
 
 
 class FlagLabelMismatchError(ErrorChecker):
@@ -292,29 +475,20 @@ class FlagLabelMismatchError(ErrorChecker):
     def tag():
         return ('flagDependency',)
 
-    @staticmethod
-    def title():
+    def title(self):
         return "Mismatched Flag Labels"
 
-    @staticmethod
-    def error_string():
+    def error_string(self):
         return "The flag label that {} is dependent on is never " \
-               "created during installation."
+               "created during installation.".format(self.error_tag)
 
-    @staticmethod
-    def check(root, element, installer_path):
-        del installer_path
-        if not element.get('value'):
-            return False
-
-        for elem in root.findall('.//flag'):
+    def check(self, root, element, installer_path):
+        super().check(root, element, installer_path)
+        for elem in root.iterfind('.//flag'):
             if elem.get('name') == element.get('flag'):
                 return False
 
         return True
-
-
-ERROR_LIST.append(FlagLabelMismatchError)
 
 
 class FlagValueMismatchError(ErrorChecker):
@@ -326,109 +500,94 @@ class FlagValueMismatchError(ErrorChecker):
     def tag():
         return ('flagDependency',)
 
-    @staticmethod
-    def title():
+    def title(self):
         return "Mismatched Flag Values"
 
-    @staticmethod
-    def error_string():
-        return "The flag value that {} is dependent on is never set."
+    def error_string(self):
+        return "The flag value that {} is " \
+               "dependent on is never set.".format(self.error_tag)
 
-    @staticmethod
-    def check(root, element, installer_path):
-        del installer_path
-        if not element.get('value'):
-            return False
+    def check(self, root, element, installer_path):
+        super().check(root, element, installer_path)
 
-        for elem in root.findall('.//flag'):
-            if (elem.get('name') == element.get('flag') and
-                    elem.text == element.get('value')):
-                return False
+        # check if the flag label actually exists
+        # no point in showing this error if the label doesn't even exist
+        label_found = False
 
-        return True
+        for elem in root.iterfind('.//flag'):
+            if elem.get('name') == element.get('flag'):
+                label_found = True
+                if elem.text == element.get('value'):
+                    return False
+
+        return label_found
 
 
-ERROR_LIST.append(FlagValueMismatchError)
-
-
-def check_for_errors(installer):
+def check_for_errors(tree, path=''):
     """
-    Call this function to check for errors.
-    Refer to ErrorChecker subclasses for more information.
+    Checks for common mistakes in FOMOD installers.
 
     Args:
-        installer:
-            Accepts a Root object, a tuple/list of
-            parsed lxml trees as (info, config) and
-            a path to the package. Error checks that
-            require a package path will only be checked
-            if a package path is given as the argument.
+        tree: The tree to validate.
+            ``tree`` can be any of the following:
+
+                - a :class:`~pyfomod.parser.FomodElement`
+                - a file name/path
+                - a file object
+                - a file-like object
+                - a URL using the HTTP or FTP protocol
+
+        path (str): The path to the package to install.
+            Used for checking errors that involve physical files.
 
     Returns:
-        list(tuple):
-            a list of tuples as: (lines, title, message, tag)
+        list(_FomodError):
+            A list of :class:`_FomodError` tuples,
+            that represent each error/mistake caught in ``tree``.
+
+    Raises:
+        AssertionError: In case the FOMOD in ``tree`` is not valid.
+            See :func:`assert_valid`.
+
+    Note:
+        You can pass any path to this function, even one without a
+        physical FOMOD installer present. This allows you to check
+        for errors before commiting to a physical installer.
     """
+    assert_valid(tree)
+
+    if isinstance(tree, etree._ElementTree):
+        tree = tree.getroot()
+    elif not isinstance(tree, etree._Element):
+        if not path:
+            path = tree
+        tree = etree.parse(tree)
 
     # the list to hold the final tuples
     checked_errors = []
 
-    # the variable to hold the lxml trees
-    installer_trees = None
-
-    # boolean that checks if the argument is a valid path
-    installer_is_path = False
-
     # build the tag -> errors dictionary
     # easier to select errors to check
     error_tag_dict = {}
-    for error in ERROR_LIST:
+    for error in ERROR_DICT.values():
         for tag in error.tag():
             if tag in error_tag_dict:
-                error_tag_dict[tag].append(error)
+                error_tag_dict[tag].append(error())
             else:
-                error_tag_dict[tag] = [error]
-
-    # check if it's a parsed Root object - dead end for now
-    if isinstance(installer, Root):
-        raise NotImplementedError
-
-    # checks if it's a tuple of parsed lxml trees
-    if isinstance(installer, (list, tuple)):
-        try:
-            installer_trees = (etree.ElementTree(installer[0].getroot()),
-                               etree.ElementTree(installer[1].getroot()))
-        except AttributeError:
-            installer_trees = (etree.ElementTree(installer[0]),
-                               etree.ElementTree(installer[1]))
-
-    if installer_trees is None:
-        # last, check if it's a path to the installer
-        try:
-            file_paths = get_installer_files(installer)
-            installer_trees = (etree.parse(file_paths[0]),
-                               etree.parse(file_paths[1]))
-            installer_is_path = True
-            if (os.path.dirname(file_paths[0]) == installer and
-                    os.path.dirname(file_paths[1]) == installer):
-                installer = os.path.join(installer, '..')
-        except IOError:
-            # if installer_trees is still None the argument is invalid
-            raise ValueError
+                error_tag_dict[tag] = [error()]
 
     # start iterating and checking
-    for element in installer_trees[1].getroot().iter():
+    for element in tree.iter():
         if element.tag in error_tag_dict:
             for error in error_tag_dict[element.tag]:
-                if error.needs_path() and not installer_is_path:
+                if error.needs_path and not os.path.isdir(path):
                     continue
 
-                if error.check(installer_trees[1].getroot(),
-                               element,
-                               installer):
-                    error_msg = error.error_string()
-                    checked_errors.append((element.sourceline,
-                                           error.title(),
-                                           error_msg.format(element.tag),
-                                           element.tag))
+                if error.check(tree, element, path):
+                    error_tuple = _FomodError(element.sourceline,
+                                              error.title(),
+                                              error.error_string(),
+                                              element.tag)
+                    checked_errors.append(error_tuple)
 
     return checked_errors

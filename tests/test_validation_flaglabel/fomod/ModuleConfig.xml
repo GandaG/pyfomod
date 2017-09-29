@@ -1,8 +1,0 @@
-<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-    xsi:noNamespaceSchemaLocation="https://github.com/fomod-lang/fomod/blob/5.0/ModuleConfig.xsd">
-    <moduleName>Flag Label Mismatch Error</moduleName>
-    <moduleDependencies operator="And">
-        <flagDependency flag="Missing Flag" value="Missing"/>
-        <flagDependency flag="Missing Value" value=""/>
-    </moduleDependencies>
-</config>

@@ -3,8 +3,7 @@ import os
 from lxml import etree
 
 import mock
-import pytest
-from pyfomod import parser, validation
+from pyfomod import validation
 
 
 class Test_Assert_Valid:
@@ -44,98 +43,242 @@ class Test_Validate:
 
 
 class Test_Check_Errors:
-    def test_root(self):
-        root = parser.FOMOD_PARSER.makeelement('config')
-        with pytest.raises(NotImplementedError):
-            validation.check_for_errors(root)
+    def test_normal(self, tmpdir):
+        tree = etree.fromstring("<fomod>"
+                                "<Name>Example Name</Name>"
+                                "<Author>Example Author</Author>"
+                                "<Version>0</Version>"
+                                "<Website>www.example.com</Website>"
+                                "</fomod>")
+        assert validation.check_for_errors(tree) == []
+        tree = etree.ElementTree(tree)
+        assert validation.check_for_errors(tree) == []
+        path = os.path.join(str(tmpdir), 'fomod.xml')
+        tree.write(path)
+        assert validation.check_for_errors(path) == []
 
-    def test_tuple(self, simple_parse):
-        assert not validation.check_for_errors(tuple(simple_parse))
-        simple_parse = (etree.ElementTree(simple_parse[0]),
-                        etree.ElementTree(simple_parse[1]))
-        assert not validation.check_for_errors(tuple(simple_parse))
+    def test_no_name(self):
+        tree = etree.fromstring("<fomod>"
+                                "<Author>Example Author</Author>"
+                                "<Version>0</Version>"
+                                "<Website>www.example.com</Website>"
+                                "</fomod>")
+        expected = [(1, "Installer With No Name",
+                     "The installer has no name specified.", 'fomod')]
+        assert validation.check_for_errors(tree) == expected
 
-    def test_list(self, simple_parse):
-        assert not validation.check_for_errors(list(simple_parse))
-        simple_parse = (etree.ElementTree(simple_parse[0]),
-                        etree.ElementTree(simple_parse[1]))
-        assert not validation.check_for_errors(list(simple_parse))
+    def test_no_author(self):
+        tree = etree.fromstring("<fomod>"
+                                "<Name>Example Name</Name>"
+                                "<Version>0</Version>"
+                                "<Website>www.example.com</Website>"
+                                "</fomod>")
+        expected = [(1, "Unsigned Installer",
+                     "The installer has no author specified.", 'fomod')]
+        assert validation.check_for_errors(tree) == expected
 
-    def test_path(self, example_fomod):
-        assert not validation.check_for_errors(example_fomod)
-        assert not validation.check_for_errors(os.path.join(example_fomod,
-                                                            'fomod'))
+    def test_no_version(self):
+        tree = etree.fromstring("<fomod>"
+                                "<Name>Example Name</Name>"
+                                "<Author>Example Author</Author>"
+                                "<Website>www.example.com</Website>"
+                                "</fomod>")
+        expected = [(1, "Versionless Installer",
+                     "The installer has no version specified.", 'fomod')]
+        assert validation.check_for_errors(tree) == expected
 
-    def test_invalid_arg(self, tmpdir):
-        with pytest.raises(ValueError):
-            validation.check_for_errors(str(tmpdir))
+    def test_no_website(self):
+        tree = etree.fromstring("<fomod>"
+                                "<Name>Example Name</Name>"
+                                "<Author>Example Author</Author>"
+                                "<Version>0</Version>"
+                                "</fomod>")
+        expected = [(1, "Offline Installer",
+                     "The installer has no website specified.", 'fomod')]
+        assert validation.check_for_errors(tree) == expected
 
     def test_empty_inst(self):
-        package_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                    'test_validation_empty')
-        expected = [(2, "Empty Installer",
+        tree = etree.fromstring("<config>"
+                                "<moduleName>"
+                                "Empty Installer Error"
+                                "</moduleName>"
+                                "</config>")
+        expected = [(1, "Empty Installer",
                      "The installer is empty.", 'config')]
-        assert validation.check_for_errors(package_path) == expected
+        assert validation.check_for_errors(tree) == expected
 
     def test_empty_source(self):
-        package_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                    'test_validation_emptysource')
-        expected = [(5, "Empty Source Fields",
+        tree = etree.fromstring("<config>"
+                                "<moduleName>Empty Source Error</moduleName>"
+                                "<requiredInstallFiles>"
+                                "<file source=''/>"
+                                "</requiredInstallFiles>"
+                                "</config>")
+        expected = [(1, "Empty Source Fields",
                      "The source folder(s) under the tag file were empty.",
                      'file')]
-        assert validation.check_for_errors(package_path) == expected
+        assert validation.check_for_errors(tree) == expected
 
-    def test_missing_folder(self):
-        package_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                    'test_validation_missfolder')
-        expected = [(5, "Missing Source Folders",
+    def test_unused_files(self, tmpdir):
+        tree = etree.fromstring("<config>"
+                                "<moduleName/>"
+                                "<moduleImage path='modimg.png'/>"
+                                "<requiredInstallFiles>"
+                                "<folder source='aa/bb'/>"
+                                "<folder source='dd'/>"
+                                "<file source='datafile'/>"
+                                "<file source='aa/cc/ff.txt'/>"
+                                "</requiredInstallFiles>"
+                                "<installSteps>"
+                                "<installStep name=''>"
+                                "<optionalFileGroups>"
+                                "<group name='' type='SelectAtLeastOne'>"
+                                "<plugins>"
+                                "<plugin name=''>"
+                                "<description/>"
+                                "<image path='img.png'/>"
+                                "<conditionFlags>"
+                                "<flag name='flag'>value</flag>"
+                                "</conditionFlags>"
+                                "<typeDescriptor>"
+                                "<type name='Optional'/>"
+                                "</typeDescriptor>"
+                                "</plugin>"
+                                "</plugins>"
+                                "</group>"
+                                "</optionalFileGroups>"
+                                "</installStep>"
+                                "</installSteps>"
+                                "</config>")
+        tmpdir = str(tmpdir)
+        os.mkdir(os.path.join(tmpdir, 'aa'))
+        os.mkdir(os.path.join(tmpdir, 'aa', 'bb'))
+        os.mkdir(os.path.join(tmpdir, 'aa', 'cc'))
+        os.mkdir(os.path.join(tmpdir, 'dd'))
+        gg = os.path.join(tmpdir, 'aa', 'cc', 'gg.txt')
+        hh = os.path.join(tmpdir, 'aa', 'hh.txt')
+        unuseddatafile = os.path.join(tmpdir, 'unuseddatafile')
+        open(os.path.join(tmpdir, 'aa', 'bb', 'ee.txt'), 'a').close()
+        open(os.path.join(tmpdir, 'aa', 'cc', 'ff.txt'), 'a').close()
+        open(gg, 'a').close()
+        open(hh, 'a').close()
+        open(os.path.join(tmpdir, 'dd', 'ii.txt'), 'a').close()
+        open(os.path.join(tmpdir, 'datafile'), 'a').close()
+        open(unuseddatafile, 'a').close()
+        open(os.path.join(tmpdir, 'modimg.png'), 'a').close()
+        open(os.path.join(tmpdir, 'img.png'), 'a').close()
+        gg = "\n    " + os.path.relpath(gg, tmpdir)
+        hh = "\n    " + os.path.relpath(hh, tmpdir)
+        unuseddatafile = "\n    " + os.path.relpath(unuseddatafile, tmpdir)
+        expected = [(1, "Unused Files",
+                     "The following file(s) are included within the package"
+                     " but are not used:" + unuseddatafile + hh + gg,
+                     'config')]
+        assert validation.check_for_errors(tree, path=tmpdir) == expected
+
+    def test_missing_folder(self, tmpdir):
+        tree = etree.fromstring("<config>"
+                                "<moduleName>Empty Source Error</moduleName>"
+                                "<requiredInstallFiles>"
+                                "<folder source='missing'/>"
+                                "</requiredInstallFiles>"
+                                "</config>")
+        expected = [(1, "Missing Source Folders",
                      "The source folder(s) under the tag folder "
                      "weren't found inside the package.",
                      'folder')]
-        assert validation.check_for_errors(package_path) == expected
+        assert validation.check_for_errors(tree, path=str(tmpdir)) == expected
 
-    def test_missing_file(self):
-        package_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                    'test_validation_missfile')
-        expected = [(5, "Missing Source Files",
+    def test_missing_file(self, tmpdir):
+        tree = etree.fromstring("<config>"
+                                "<moduleName>Empty Source Error</moduleName>"
+                                "<requiredInstallFiles>"
+                                "<file source='missing.txt'/>"
+                                "</requiredInstallFiles>"
+                                "</config>")
+        expected = [(1, "Missing Source Files",
                      "The source file(s) under the tag file "
                      "weren't found inside the package.",
                      'file')]
-        assert validation.check_for_errors(package_path) == expected
+        assert validation.check_for_errors(tree, path=str(tmpdir)) == expected
 
-    def test_missing_image(self):
-        package_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                    'test_validation_missimage')
-        expected = [(2, "Empty Installer",
-                     "The installer is empty.", 'config'),
-                    (4, "Missing Images",
+    def test_missing_image(self, tmpdir):
+        tree = etree.fromstring("<config>"
+                                "<moduleName>Empty Source Error</moduleName>"
+                                "<moduleImage path='missing.png'/>"
+                                "<requiredInstallFiles/>"
+                                "</config>")
+        expected = [(1, "Missing Images",
                      "The image(s) under the tag moduleImage "
                      "weren't found inside the package.",
                      'moduleImage')]
-        assert validation.check_for_errors(package_path) == expected
+        assert validation.check_for_errors(tree, path=str(tmpdir)) == expected
 
     def test_flag_label_mismatch(self):
-        package_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                    'test_validation_flaglabel')
-        expected = [(5, "Mismatched Flag Labels",
+        tree = etree.fromstring("<config>"
+                                "<moduleName/>"
+                                "<moduleDependencies operator='And'>"
+                                "<flagDependency "
+                                "flag='Missing Flag' value='Missing'/>"
+                                "</moduleDependencies>"
+                                "<installSteps>"
+                                "<installStep name=''>"
+                                "<optionalFileGroups>"
+                                "<group name='' type='SelectAtLeastOne'>"
+                                "<plugins>"
+                                "<plugin name=''>"
+                                "<description/>"
+                                "<conditionFlags>"
+                                "<flag name='flag'>value</flag>"
+                                "</conditionFlags>"
+                                "<typeDescriptor>"
+                                "<type name='Optional'/>"
+                                "</typeDescriptor>"
+                                "</plugin>"
+                                "</plugins>"
+                                "</group>"
+                                "</optionalFileGroups>"
+                                "</installStep>"
+                                "</installSteps>"
+                                "</config>")
+        expected = [(1, "Mismatched Flag Labels",
                      "The flag label that flagDependency is dependent on "
                      "is never created during installation.",
-                     'flagDependency'),
-                    (5, "Mismatched Flag Values",
-                     "The flag value that flagDependency is dependent on "
-                     "is never set.",
                      'flagDependency')]
-        assert validation.check_for_errors(package_path) == expected
+        assert validation.check_for_errors(tree) == expected
 
     def test_flag_value_mismatch(self):
-        package_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                    'test_validation_flaglabel')
-        expected = [(5, "Mismatched Flag Labels",
-                     "The flag label that flagDependency is dependent on "
-                     "is never created during installation.",
-                     'flagDependency'),
-                    (5, "Mismatched Flag Values",
+        tree = etree.fromstring("<config>"
+                                "<moduleName/>"
+                                "<moduleDependencies operator='And'>"
+                                "<flagDependency "
+                                "flag='flag1' value='value'/>"
+                                "<flagDependency "
+                                "flag='flag2' value='Missing'/>"
+                                "</moduleDependencies>"
+                                "<installSteps>"
+                                "<installStep name=''>"
+                                "<optionalFileGroups>"
+                                "<group name='' type='SelectAtLeastOne'>"
+                                "<plugins>"
+                                "<plugin name=''>"
+                                "<description/>"
+                                "<conditionFlags>"
+                                "<flag name='flag1'>value</flag>"
+                                "<flag name='flag2'>value</flag>"
+                                "</conditionFlags>"
+                                "<typeDescriptor>"
+                                "<type name='Optional'/>"
+                                "</typeDescriptor>"
+                                "</plugin>"
+                                "</plugins>"
+                                "</group>"
+                                "</optionalFileGroups>"
+                                "</installStep>"
+                                "</installSteps>"
+                                "</config>")
+        expected = [(1, "Mismatched Flag Values",
                      "The flag value that flagDependency is dependent on "
                      "is never set.",
                      'flagDependency')]
-        assert validation.check_for_errors(package_path) == expected
+        assert validation.check_for_errors(tree) == expected
