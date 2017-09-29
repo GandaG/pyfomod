@@ -29,53 +29,50 @@ from .parser import Root
 FOMOD_SCHEMA = etree.XMLSchema(pyfomod.FOMOD_SCHEMA_TREE)
 
 
-def validate_installer(installer):
+def assert_valid(tree):
     """
-    Checks if the `installer` is valid.
+    Validates a FOMOD tree. Raises an :class:`AssertionError` if invalid
+    with the validation error as the exception message.
 
     Args:
-        installer:
-            Accepts as arguments a parsed Root object, a tuple or list of
-            two parsed lxml trees (info and config, in that order) or a valid
-            path to an installer. The path follows the same rules as when given
-            to get_installer_files.
+        tree: The tree to validate.
+            ``tree`` can be any of the following:
 
-    Returns:
-        bool: True if the installer is valid, False if not.
+                - a :class:`~pyfomod.parser.FomodElement`
+                - a file name/path
+                - a file object
+                - a file-like object
+                - a URL using the HTTP or FTP protocol
 
     Raises:
-        ValueError: If the argument passed does not comply with the
-            rules above.
+        AssertionError: If ``tree`` fails to validate. The exception message
+            contains the validation error.
     """
-    # the variable to hold the info and config trees
-    installer_trees = None
+    if not isinstance(tree, (etree._Element, etree._ElementTree)):
+        tree = etree.parse(tree)
+    FOMOD_SCHEMA.assert_(tree)
 
-    # check if it's a parsed Root object - dead end for now
-    if isinstance(installer, Root):
-        raise NotImplementedError
 
-    # checks if it's a tuple of parsed lxml trees
-    if isinstance(installer, (list, tuple)):
-        try:
-            installer_trees = (etree.ElementTree(installer[0].getroot()),
-                               etree.ElementTree(installer[1].getroot()))
-        except AttributeError:
-            installer_trees = (etree.ElementTree(installer[0]),
-                               etree.ElementTree(installer[1]))
+def validate(tree):
+    """
+    Validates a FOMOD tree.
 
-    if installer_trees is None:
-        # last, check if it's a path to the installer
-        try:
-            file_paths = get_installer_files(installer)
-            installer_trees = (etree.parse(file_paths[0]),
-                               etree.parse(file_paths[1]))
-        except IOError:
-            # if installer_trees is still None the argument is invalid
-            raise ValueError
+    Args:
+        tree: The tree to validate.
+            ``tree`` can be any of the following:
 
-    # return the validity of the documents
-    return (FOMOD_SCHEMA.validate(installer_trees[0]) and
-            FOMOD_SCHEMA.validate(installer_trees[1]))
+                - a :class:`~pyfomod.parser.FomodElement`
+                - a file name/path
+                - a file object
+                - a file-like object
+                - a URL using the HTTP or FTP protocol
+
+    Returns:
+        bool: True if ``tree`` is valid, False otherwise.
+    """
+    if not isinstance(tree, (etree._Element, etree._ElementTree)):
+        tree = etree.parse(tree)
+    return FOMOD_SCHEMA.validate(tree)
 
 
 ERROR_LIST = []

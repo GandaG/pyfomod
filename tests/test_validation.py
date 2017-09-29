@@ -2,36 +2,45 @@ import os
 
 from lxml import etree
 
+import mock
 import pytest
 from pyfomod import parser, validation
 
 
-class Test_Validate_Installer:
-    def test_root(self):
-        root = parser.FOMOD_PARSER.makeelement('config')
-        with pytest.raises(NotImplementedError):
-            validation.validate_installer(root)
+class Test_Assert_Valid:
+    @mock.patch('pyfomod.validation.FOMOD_SCHEMA')
+    @mock.patch('pyfomod.validation.etree.parse')
+    def test_path(self, mock_parse, mock_schema):
+        mock_valid = mock_schema.assert_ = mock.Mock()
+        mock_path = mock.Mock(spec=str)
+        validation.assert_valid(mock_path)
+        mock_parse.assert_called_once_with(mock_path)
+        mock_valid.assert_called_once_with(mock_parse.return_value)
 
-    def test_tuple(self, simple_parse):
-        assert validation.validate_installer(tuple(simple_parse))
-        simple_parse = (etree.ElementTree(simple_parse[0]),
-                        etree.ElementTree(simple_parse[1]))
-        assert validation.validate_installer(tuple(simple_parse))
+    @mock.patch('pyfomod.validation.FOMOD_SCHEMA')
+    def test_tree(self, mock_schema):
+        mock_valid = mock_schema.assert_ = mock.Mock()
+        mock_tree = mock.Mock(spec=etree._Element)
+        validation.assert_valid(mock_tree)
+        mock_valid.assert_called_once_with(mock_tree)
 
-    def test_list(self, simple_parse):
-        assert validation.validate_installer(list(simple_parse))
-        simple_parse = (etree.ElementTree(simple_parse[0]),
-                        etree.ElementTree(simple_parse[1]))
-        assert validation.validate_installer(list(simple_parse))
 
-    def test_path(self, example_fomod):
-        assert validation.validate_installer(example_fomod)
-        assert validation.validate_installer(os.path.join(example_fomod,
-                                                          'fomod'))
+class Test_Validate:
+    @mock.patch('pyfomod.validation.FOMOD_SCHEMA')
+    @mock.patch('pyfomod.validation.etree.parse')
+    def test_path(self, mock_parse, mock_schema):
+        mock_valid = mock_schema.validate
+        mock_path = mock.Mock(spec=str)
+        validation.validate(mock_path)
+        mock_parse.assert_called_once_with(mock_path)
+        mock_valid.assert_called_once_with(mock_parse.return_value)
 
-    def test_invalid_arg(self, tmpdir):
-        with pytest.raises(ValueError):
-            validation.validate_installer(str(tmpdir))
+    @mock.patch('pyfomod.validation.FOMOD_SCHEMA')
+    def test_tree(self, mock_schema):
+        mock_valid = mock_schema.validate
+        mock_tree = mock.Mock(spec=etree._Element)
+        validation.validate(mock_tree)
+        mock_valid.assert_called_once_with(mock_tree)
 
 
 class Test_Check_Errors:
