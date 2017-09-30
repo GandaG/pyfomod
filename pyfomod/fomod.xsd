@@ -713,6 +713,7 @@
                 <xs:element name="Description" type="xs:string" minOccurs="0"/>
                 <xs:element name="Website" type="xs:string" minOccurs="0"/>
                 <xs:element name="Id" type="xs:string" minOccurs="0"/>
+				<xs:any processContents="skip" minOccurs="0" maxOccurs="unbounded"/>
             </xs:sequence>
         </xs:complexType>
     </xs:element>
