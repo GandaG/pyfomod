@@ -1,4 +1,5 @@
 import os
+import sys
 import subprocess
 
 from lxml import etree
@@ -7,6 +8,8 @@ from copy import deepcopy
 import pytest
 from pyfomod import io, parser
 import pyfomod
+
+sys.path.append(os.path.join(os.path.dirname(__file__), 'tests', 'helpers'))
 
 
 @pytest.fixture(scope='session')

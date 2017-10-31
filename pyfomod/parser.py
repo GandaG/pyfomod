@@ -23,7 +23,13 @@ from copy import deepcopy
 from lxml import etree
 
 import pyfomod
+
 from .exceptions import InvalidArgument
+from .schema import (copy_schema, get_attribute_type, get_builtin_value,
+                     get_complex_type, get_doc_text, get_max_occurs,
+                     get_min_occurs, get_order_from_elem, get_order_from_group,
+                     get_order_from_type, is_builtin_attribute,
+                     is_complex_element, localname)
 
 _Attribute = namedtuple('_Attribute', "name doc default type use restriction")
 """
@@ -117,7 +123,7 @@ class FomodElement(etree.ElementBase):
             Returns the maximum times this element can be
             repeated or ``None`` if there is no limit.
         """
-        return self._element_get_max_occurs(self._schema_element)
+        return get_max_occurs(self._schema_element)
 
     @property
     def min_occurences(self):
@@ -134,19 +140,19 @@ class FomodElement(etree.ElementBase):
             The text type of this element. :py:class:`None` if no text is
             allowed.
         """
-        if self._schema_element is self._schema_type:
-            return self._schema_type.get('type')[3:]
+        if not is_complex_element(self._schema_element):
+            return self._schema_element.get('type')[3:]
 
-        nsmap = '{' + self._schema.nsmap['xs'] + '}'
-        content_exp = "{}simpleContent".format(nsmap)
-        content = self._schema_type.find(content_exp)
-
-        if content is None:
+        base_exp = ("*[local-name()='simpleContent']/"
+                    "*[local-name()='extension'] | "
+                    "*[local-name()='simpleContent']/"
+                    "*[local-name()='restriction']")
+        try:
+            schema_type = get_complex_type(self._schema_element)
+            base_elem = schema_type.xpath(base_exp)[0]
+            return get_builtin_value(base_elem.get('base'))
+        except IndexError:
             return None
-
-        type_exp = "xs:extension | xs:restriction"
-        base_elem = content.xpath(type_exp, namespaces=self._schema.nsmap)[0]
-        return base_elem.get('base')[3:]
 
     @property
     def comment(self):
@@ -188,57 +194,24 @@ class FomodElement(etree.ElementBase):
             Returns the documentation text associated with this element
             in the schema.
         """
-        doc = self._get_schema_doc(self._schema_element)
+        doc = get_doc_text(self._schema_element)
         if doc is None:
             return ""
         return doc
 
-    @staticmethod
-    def _element_get_max_occurs(element):
-        """
-        Returns maxOccurs for the specified element. None if unbounded.
-        """
-        max_occ = element.get('maxOccurs', 1)
-        if max_occ == 'unbounded':
-            return None
-        return int(max_occ)
+    @classmethod
+    def _copy_element(cls, element, copy_level=0):
+        copy = etree.Element(element.tag,
+                             attrib=element.attrib,
+                             nsmap=element.nsmap)
+        copy.text = element.text
+        copy.tail = element.tail
 
-    @staticmethod
-    def _get_schema_doc(schema_elem):
-        """
-        Returns the text of the of the annotation/documentation element
-        below the `schema_elem`. Example::
+        if copy_level != 0:
+            for child in element:
+                copy.append(cls._copy_element(child, copy_level - 1))
 
-            <`schema_elem`>
-                <annotation>
-                    <documentation>
-                        This method returns this.
-                    </documentation>
-                </annotation>
-            </`schema_elem`>
-
-        If no such structure could be found, returns ``None``.
-        """
-        nsmap = '{' + schema_elem.nsmap['xs'] + '}'
-        doc_elem = schema_elem.find("{0}annotation/"
-                                    "{0}documentation".format(nsmap))
-        if doc_elem is not None:
-            return doc_elem.text
-        return None
-
-    @staticmethod
-    def _get_order_from_group(group_elem, root_elem):
-        """
-        Returns the order indicator from a group reference.
-        """
-        nsmap = '{' + root_elem.nsmap['xs'] + '}'
-        ord_exp = "xs:all | xs:sequence | xs:choice"
-        group_ref_exp = "{}group[@name=\"{}\"]".format(nsmap,
-                                                       group_elem.get('ref'))
-
-        group_ref = root_elem.find(group_ref_exp)
-        return group_ref.xpath(ord_exp,
-                               namespaces=root_elem.nsmap)[0]
+        return copy
 
     @classmethod
     def _valid_children_parse_order(cls, ord_elem):
@@ -248,23 +221,27 @@ class FomodElement(etree.ElementBase):
         Returns an _OrderIndicator named tuple for the *ord_elem*.
         """
         child_list = []
-        child_exp = 'xs:element | xs:all | xs:sequence | xs:choice'
-        nsmap = '{' + ord_elem.nsmap['xs'] + '}'
 
-        for child in ord_elem.xpath(child_exp, namespaces=ord_elem.nsmap):
+        for child in ord_elem:
             child_tuple = None
-            if child.tag == '{}element'.format(nsmap):
-                child_max_occ = cls._element_get_max_occurs(child)
+            if localname(child) == 'element':
                 child_tuple = _ChildElement(child.get('name'),
-                                            child_max_occ,
-                                            int(child.get('minOccurs', 1)))
+                                            get_max_occurs(child),
+                                            get_min_occurs(child))
+            elif localname(child) == 'any':
+                child_tuple = _ChildElement(None,
+                                            get_max_occurs(child),
+                                            get_min_occurs(child))
+            elif localname(child) == 'group':
+                child_order = get_order_from_group(child)
+                child_tuple = cls._valid_children_parse_order(child_order)
             else:
                 child_tuple = cls._valid_children_parse_order(child)
             child_list.append(child_tuple)
 
-        return _OrderIndicator(etree.QName(ord_elem).localname, child_list,
-                               cls._element_get_max_occurs(ord_elem),
-                               int(ord_elem.get('minOccurs', 1)))
+        return _OrderIndicator(localname(ord_elem), child_list,
+                               get_max_occurs(ord_elem),
+                               get_min_occurs(ord_elem))
 
     def _init(self):
         """
@@ -277,14 +254,7 @@ class FomodElement(etree.ElementBase):
         self._schema = pyfomod.FOMOD_SCHEMA_TREE
 
         # the element that holds minOccurs, etc.
-        self._schema_element = None
-
-        # the type of this element (can be the same as the schema_element)
-        # holds info about attributes, children, etc.
-        self._schema_type = None
-
-        lookup = self._lookup_element()
-        self._schema_element, self._schema_type = lookup
+        self._schema_element = self._lookup_element()
 
         # the comment associated with this element.
         # this comment always exists before the element.
@@ -300,60 +270,31 @@ class FomodElement(etree.ElementBase):
         """
         ancestor_list = list(self.iterancestors())[::-1]
         ancestor_list.append(self)
-        nsmap = '{' + self._schema.nsmap['xs'] + '}'
 
-        # the current element in schema
-        # in most cases it will actually be a complexType
-        current_element = self._schema
-
-        # the holder element will always be an actual element
+        # the current element will always be an actual element
         # it will contain tag, minOccurs, maxOccurs, etc.
-        holder_element = None
+        current_element = None
+
+        # the current type in schema
+        # in most cases it will actually be a complexType
+        current_type = self._schema
 
         for elem in ancestor_list:
-            xpath_exp = "{}element[@name=\"{}\"]".format(nsmap, elem.tag)
-            holder_element = current_element.find(xpath_exp)
+            xpath_exp = "{*}element[@name=\"" + elem.tag + "\"]"
+            current_element = current_type.find(xpath_exp)
 
             # this means there could order tags and/or be nested in a group tag
-            if holder_element is None:
-                ord_exp = "xs:all | xs:sequence | xs:choice"
+            if current_element is None:
+                order_elem = get_order_from_type(current_type)
+                current_element = order_elem.find(".//" + xpath_exp)
+                if current_element is None:
+                    raise AssertionError("No element was found for this tag.")
 
-                # check group tag first
-                group_elem = current_element.find('{}group'.format(nsmap))
-                if group_elem is not None:
-                    first = [self._get_order_from_group(group_elem,
-                                                        self._schema)]
-                else:
-                    namespaces = self._schema.nsmap
-                    first = current_element.xpath(ord_exp,
-                                                  namespaces=namespaces)
+            current_type = get_complex_type(current_element)
+            if current_type is None:
+                current_type = current_element
 
-                # check for order tags
-                while holder_element is None and first:
-                    temp = first
-                    holder_element = temp[0].find(xpath_exp)
-                    first = first[0].xpath(ord_exp,
-                                           namespaces=self._schema.nsmap)
-
-            # a complexType that is used solely for this element
-            if holder_element.get('type') is None:
-                complex_exp = '{}complexType'.format(nsmap)
-                current_element = holder_element.find(complex_exp)
-
-            # it is vital that this is the last element
-            # if not, then the xml is not valid and something is wrong
-            # with this code
-            elif holder_element.get('type').startswith('xs:'):
-                current_element = holder_element
-
-            # last, the complex type is separate from the holder element
-            else:
-                custom_type = holder_element.get('type')
-                complx_exp = '{}complexType[@name=\"{}\"]'.format(nsmap,
-                                                                  custom_type)
-                current_element = self._schema.find(complx_exp)
-
-        return holder_element, current_element
+        return current_element
 
     def valid_attributes(self):
         """
@@ -367,128 +308,53 @@ class FomodElement(etree.ElementBase):
                 this element can have. For more info refer to
                 :py:class:`_Attribute`.
         """
-        nsmap = '{' + self._schema.nsmap['xs'] + '}'
+        if not is_complex_element(self._schema_element):
+            return []
+
         result_list = []
+        attr_exp = ("*[local-name()='attribute'] | "
+                    "*[local-name()='simpleContent']/"
+                    "*[local-name()='extension']/"
+                    "*[local-name()='attribute'] | "
+                    "*[local-name()='simpleContent']/"
+                    "*[local-name()='restriction']/"
+                    "*[local-name()='attribute']")
 
-        attr_list = self._schema_type.findall("{}attribute".format(nsmap))
-
-        # this is a mixed complex element, has text and attr
-        if not attr_list:
-            attr_exp = "xs:simpleContent/xs:extension/xs:attribute | " \
-                       "xs:simpleContent/xs:restriction/xs:attribute"
-            attr_list = self._schema_type.xpath(attr_exp,
-                                                namespaces=self._schema.nsmap)
+        schema_type = get_complex_type(self._schema_element)
+        attr_list = schema_type.xpath(attr_exp)
 
         for attr in attr_list:
             name = attr.get('name')
-
-            doc = self._get_schema_doc(attr)
-
+            doc = get_doc_text(attr)
             default = attr.get('default')
-
             use = attr.get('use', 'optional')
-
             attr_type = attr.get('type')
             restriction = None
 
-            # this is a builtin type
-            if attr_type is not None and attr_type.startswith('xs:'):
-                attr_type = attr_type[3:]
-
+            if is_builtin_attribute(attr):
+                attr_type = get_builtin_value(attr_type)
             else:
-                restriction_element = None
+                simple_type = get_attribute_type(attr)
+                # restriction is guaranteed
+                rest_elem = simple_type.find('{*}restriction')
 
-                # the attribute has a simpleType below
+                attr_type = get_builtin_value(rest_elem.get('base'))
                 if attr_type is None:
-                    rest_exp = '{0}simpleType/{0}restriction'.format(nsmap)
-                    restriction_element = attr.find(rest_exp)
-
-                # finally this is a custom separate type
-                else:
-                    type_exp = '{}simpleType[@name=\"{}\"]'.format(nsmap,
-                                                                   attr_type)
-                    rest_exp = '{}/{}restriction'.format(type_exp, nsmap)
-                    restriction_element = self._schema.find(rest_exp)
-
-                attr_type = restriction_element.get('base')[3:]
+                    attr_type = rest_elem.get('base')
                 rest_type = ''
                 enum_list = []
-                # decimals = None
-                # length = None
-                # max_exc = None
-                # max_inc = None
-                # max_len = None
-                # min_exc = None
-                # min_inc = None
-                # min_len = None
-                # pattern = None
-                # total_digits = None
 
-                for child in restriction_element:
-                    doc_child = self._get_schema_doc(child)
+                for child in rest_elem:
+                    doc_child = get_doc_text(child)
                     value = child.get('value')
 
                     rest_tuple = _AttrRestElement(value, doc_child)
 
-                    if child.tag == '{}enumeration'.format(nsmap):
+                    if localname(child) == 'enumeration':
                         if 'enumeration' not in rest_type:
                             rest_type += 'enumeration '
                         enum_list.append(rest_tuple)
 
-                    # elif child.tag == '{}fractionDigits'.format(nsmap):
-                    #     if 'decimals' not in rest_type:
-                    #         rest_type += 'decimals '
-                    #     decimals = rest_tuple
-
-                    # elif child.tag == '{}length'.format(nsmap):
-                    #     if 'length' not in rest_type:
-                    #         rest_type += 'length '
-                    #     length = rest_tuple
-
-                    # elif child.tag == '{}maxExclusive'.format(nsmap):
-                    #     if 'max_exclusive' not in rest_type:
-                    #         rest_type += 'max_exclusive '
-                    #     max_exc = rest_tuple
-
-                    # elif child.tag == '{}maxInclusive'.format(nsmap):
-                    #     if 'max_inclusive' not in rest_type:
-                    #         rest_type += 'max_inclusive '
-                    #     max_inc = rest_tuple
-
-                    # elif child.tag == '{}maxLength'.format(nsmap):
-                    #     if 'max_length' not in rest_type:
-                    #         rest_type += 'max_length '
-                    #     max_len = rest_tuple
-
-                    # elif child.tag == '{}minExclusive'.format(nsmap):
-                    #     if 'min_exclusive' not in rest_type:
-                    #         rest_type += 'min_exclusive '
-                    #     min_exc = rest_tuple
-
-                    # elif child.tag == '{}minInclusive'.format(nsmap):
-                    #     if 'min_inclusive' not in rest_type:
-                    #         rest_type += 'min_inclusive '
-                    #     min_inc = rest_tuple
-
-                    # elif child.tag == '{}minLength'.format(nsmap):
-                    #     if 'min_length' not in rest_type:
-                    #         rest_type += 'min_length '
-                    #     min_len = rest_tuple
-
-                    # elif child.tag == '{}pattern'.format(nsmap):
-                    #     if 'pattern' not in rest_type:
-                    #         rest_type += 'pattern '
-                    #     pattern = rest_tuple
-
-                    # elif child.tag == '{}totalDigits'.format(nsmap):
-                    #     if 'total_digits' not in rest_type:
-                    #         rest_type += 'total_digits '
-                    #     total_digits = rest_tuple
-
-                # restriction = AttrRestriction(rest_type, enum_list, decimals,
-                #                               length, max_exc, max_inc,
-                #                               max_len, min_exc, min_inc,
-                #                               min_len, pattern, total_digits)
                 restriction = _AttrRestriction(rest_type, enum_list, None,
                                                None, None, None,
                                                None, None, None,
@@ -580,33 +446,11 @@ class FomodElement(etree.ElementBase):
                 its structure refer to :py:class:`_OrderIndicator`.
                 `None` if this element has no valid children.
         """
-        nsmap = '{' + self._schema.nsmap['xs'] + '}'
-
-        # if it's a simple element, no children
-        if self._schema_type is self._schema_element:
+        order_elem = get_order_from_elem(self._schema_element)
+        if order_elem is None:
             return None
 
-        # the order tuple to return
-        initial_ord = None
-
-        # the valid order indicators
-        order_indicators = ['all', 'sequence', 'choice']
-
-        first_exp = 'xs:group | xs:all | xs:sequence | xs:choice'
-        try:
-            first = self._schema_type.xpath(first_exp,
-                                            namespaces=self._schema.nsmap)[0]
-        except IndexError:
-            # no children exist
-            return None
-
-        if first.tag == '{}group'.format(nsmap):
-            first = self._get_order_from_group(first, self._schema)
-
-        if etree.QName(first).localname in order_indicators:
-            initial_ord = self._valid_children_parse_order(first)
-
-        return initial_ord
+        return self._valid_children_parse_order(order_elem)
 
     def _required_children_choice(self, choice):
         """
@@ -675,40 +519,6 @@ class FomodElement(etree.ElementBase):
             return self._required_children_choice(valid_children)
         return self._required_children_sequence(valid_children)
 
-    def _setup_shallow_schema_and_self(self):
-        """
-        Returns a shallow copy of the schema corresponding to this element
-        and a shallow copy of this element and its children.
-        """
-        schema_elem = etree.Element(etree.QName(self._schema_element,
-                                                'schema'),
-                                    nsmap=self._schema_element.nsmap)
-
-        schema_type = deepcopy(self._schema_element)
-        schema_type.attrib.pop('maxOccurs', None)
-        schema_type.attrib.pop('minOccurs', None)
-        schema_type.attrib.pop('ref', None)
-        schema_elem.append(schema_type)
-        if self._schema_element.get('type') is not None:
-            schema_type = deepcopy(self._schema_type)
-            schema_elem.append(schema_type)
-
-        if self._schema_element is not self._schema_type:
-            for elem in schema_type.iter('{*}element', '{*}attribute'):
-                if elem is schema_type:
-                    continue
-                elif 'attribute' in elem.tag:
-                    elem.getparent().remove(elem)
-                elem.attrib.pop('type', None)
-                for grandchild in elem:
-                    elem.remove(grandchild)
-
-        self_copy = etree.Element(self.tag)
-        for elem in self:
-            etree.SubElement(self_copy, elem.tag)
-
-        return schema_elem, self_copy
-
     def _find_possible_index(self, tag):
         """
         Tries to figure out if a child can be added to this element,
@@ -721,7 +531,9 @@ class FomodElement(etree.ElementBase):
         This test element is then inserted at every possible position in the
         copy of self (reversed order) until a valid position is found.
         """
-        schema_elem, self_copy = self._setup_shallow_schema_and_self()
+        schema_elem = copy_schema(self._schema_element,
+                                  copy_level=1, rm_attr=True)
+        self_copy = self._copy_element(self, copy_level=1)
 
         test_elem = etree.Element(tag)
         schema = etree.XMLSchema(schema_elem)
@@ -865,7 +677,9 @@ class FomodElement(etree.ElementBase):
             raise ValueError("child argument is not a child of this element.")
 
         index = self.index(child)
-        schema_elem, self_copy = self._setup_shallow_schema_and_self()
+        schema_elem = copy_schema(self._schema_element,
+                                  copy_level=1, rm_attr=True)
+        self_copy = self._copy_element(self, copy_level=1)
         self_copy.remove(self_copy[index])
         schema = etree.XMLSchema(schema_elem)
         return schema.validate(self_copy)
@@ -914,7 +728,9 @@ class FomodElement(etree.ElementBase):
         if parent is not None and not parent.can_remove_child(new_child):
             return False
         index = self.index(old_child)
-        schema_elem, self_copy = self._setup_shallow_schema_and_self()
+        schema_elem = copy_schema(self._schema_element,
+                                  copy_level=1, rm_attr=True)
+        self_copy = self._copy_element(self, copy_level=1)
         self_copy.replace(self_copy[index], etree.Element(new_child.tag))
         schema = etree.XMLSchema(schema_elem)
         return schema.validate(self_copy)
