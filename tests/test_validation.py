@@ -23,6 +23,15 @@ class Test_Assert_Valid:
         validation.assert_valid(mock_tree)
         mock_valid.assert_called_once_with(mock_tree)
 
+    @mock.patch('pyfomod.validation.etree.XMLSchema')
+    def test_custom_schema(self, mock_schema):
+        mock_custom_schema = mock.Mock()
+        mock_valid = mock_schema.return_value.assert_ = mock.Mock()
+        mock_tree = mock.Mock(spec=etree._Element)
+        validation.assert_valid(mock_tree, mock_custom_schema)
+        mock_schema.assert_called_once_with(mock_custom_schema)
+        mock_valid.assert_called_once_with(mock_tree)
+
 
 class Test_Validate:
     @mock.patch('pyfomod.validation.FOMOD_SCHEMA')
@@ -39,6 +48,15 @@ class Test_Validate:
         mock_valid = mock_schema.validate
         mock_tree = mock.Mock(spec=etree._Element)
         validation.validate(mock_tree)
+        mock_valid.assert_called_once_with(mock_tree)
+
+    @mock.patch('pyfomod.validation.etree.XMLSchema')
+    def test_custom_schema(self, mock_schema):
+        mock_custom_schema = mock.Mock()
+        mock_valid = mock_schema.return_value.validate = mock.Mock()
+        mock_tree = mock.Mock(spec=etree._Element)
+        validation.validate(mock_tree, mock_custom_schema)
+        mock_schema.assert_called_once_with(mock_custom_schema)
         mock_valid.assert_called_once_with(mock_tree)
 
 

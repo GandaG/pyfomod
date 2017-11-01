@@ -30,7 +30,7 @@ from .io import get_installer_files
 FOMOD_SCHEMA = etree.XMLSchema(pyfomod.FOMOD_SCHEMA_TREE)
 
 
-def assert_valid(tree):
+def assert_valid(tree, schema=None):
     """
     Validates a FOMOD tree. Raises an :class:`AssertionError` if invalid
     with the validation error as the exception message.
@@ -45,16 +45,30 @@ def assert_valid(tree):
                 - a file-like object
                 - a URL using the HTTP or FTP protocol
 
+        schema (optional): A specific schema to validate against.
+            If ``None`` then default schema is used.
+            ``schema`` can be any of the following:
+
+                - an lxml Element or any subclass of it
+                - an lxml XMLSchema
+                - an lxml ElementTree
+
     Raises:
         AssertionError: If ``tree`` fails to validate. The exception message
             contains the validation error.
     """
+    if schema is None:
+        schema = FOMOD_SCHEMA
+    try:
+        schema = etree.XMLSchema(schema)
+    except TypeError:
+        pass
     if not isinstance(tree, (etree._Element, etree._ElementTree)):
         tree = etree.parse(tree)
-    FOMOD_SCHEMA.assert_(tree)
+    schema.assert_(tree)
 
 
-def validate(tree):
+def validate(tree, schema=None):
     """
     Validates a FOMOD tree.
 
@@ -68,12 +82,26 @@ def validate(tree):
                 - a file-like object
                 - a URL using the HTTP or FTP protocol
 
+        schema (optional): A specific schema to validate against.
+            If ``None`` then default schema is used.
+            ``schema`` can be any of the following:
+
+                - an lxml Element or any subclass of it
+                - an lxml XMLSchema
+                - an lxml ElementTree
+
     Returns:
         bool: True if ``tree`` is valid, False otherwise.
     """
+    if schema is None:
+        schema = FOMOD_SCHEMA
+    try:
+        schema = etree.XMLSchema(schema)
+    except TypeError:
+        pass
     if not isinstance(tree, (etree._Element, etree._ElementTree)):
         tree = etree.parse(tree)
-    return FOMOD_SCHEMA.validate(tree)
+    return schema.validate(tree)
 
 
 ERROR_DICT = {}
