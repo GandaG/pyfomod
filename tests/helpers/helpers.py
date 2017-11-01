@@ -9,6 +9,18 @@ class ElementTest(etree.ElementBase):
     pass
 
 
+def make_element(tag, text=None, attrib=None, nsmap=None):
+    """Creates and returns an ElementTest with the specified attributes."""
+    if attrib is None:
+        attrib = {}
+    if nsmap is None:
+        nsmap = {}
+    element = ElementTest(attrib=attrib, nsmap=nsmap)
+    element.tag = tag
+    element.text = text
+    return element
+
+
 def assert_elem_eq(e1, e2):
     if (e1.tag != e2.tag or
             e1.text != e2.text or

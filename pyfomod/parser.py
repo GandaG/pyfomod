@@ -29,6 +29,7 @@ from .schema import (copy_schema, get_attribute_type, get_builtin_value,
                      get_min_occurs, get_order_from_elem, get_order_from_group,
                      get_order_from_type, is_builtin_attribute,
                      is_complex_element, localname)
+from .validation import assert_valid
 
 _Attribute = namedtuple('_Attribute', "name doc default type use restriction")
 """
@@ -421,8 +422,12 @@ class FomodElement(etree.ElementBase):
             value (str): The attribute's value.
 
         Raises:
-            ValueError: If the attribute is not allowed by the schema.
+            ValueError: If the attribute or value is not allowed by the schema.
         """
+        value = str(value)
+
+        # it is possible to simplify all of this into the second portion
+        # but I believe it's in the user's interest to keep granularity
         possible_attr = self._find_valid_attribute(name)
         if possible_attr.restriction is not None:
             if 'enumeration' in possible_attr.restriction.type:
@@ -431,6 +436,13 @@ class FomodElement(etree.ElementBase):
                     raise ValueError("{} is not allowed by this "
                                      "attribute's restrictions.".format(value))
 
+        self_schema = copy_schema(self._schema_element)
+        self_copy = self._copy_element(self)
+        self_copy.set(name, value)
+        try:
+            assert_valid(self_copy, self_schema)
+        except AssertionError:
+            raise ValueError("value is not of an acceptable type.")
         self.set(name, value)
 
     def valid_children(self):

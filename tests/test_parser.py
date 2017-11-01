@@ -5,7 +5,7 @@ from lxml import etree
 import mock
 import pyfomod
 import pytest
-from helpers import ElementTest, assert_elem_eq
+from helpers import ElementTest, assert_elem_eq, make_element
 from pyfomod import parser
 
 # tests that need a modifiable tree should use schema_mod fixture and
@@ -219,15 +219,62 @@ class Test_FomodElement:
         name = simple_parse[1][0]
         assert name.get_attribute('position') == 'Left'
 
-    def test_set_attribute_normal(self, conf_tree):
-        name = conf_tree[0]
-        name.set_attribute('position', 'Right')
-        assert name.get_attribute('position') == 'Right'
+    def test_set_attribute(self):
+        test_func = parser.FomodElement.set_attribute
+        ElementTest._find_valid_attribute = \
+            parser.FomodElement._find_valid_attribute
+        ElementTest.valid_attributes = parser.FomodElement.valid_attributes
+        ElementTest._copy_element = parser.FomodElement._copy_element
 
-    def test_set_attribute_enum_restriction(self, conf_tree):
-        name = conf_tree[0]
+        # normal
+        schema = etree.fromstring("<xs:schema xmlns:xs='http://www"
+                                  ".w3.org/2001/XMLSchema'>"
+                                  "<xs:element name='a'>"
+                                  "<xs:complexType>"
+                                  "<xs:attribute name='b' type='xs:integer'/>"
+                                  "</xs:complexType>"
+                                  "</xs:element>"
+                                  "</xs:schema>")
+        elem = make_element('a')
+        elem._schema_element = schema[0]
+        test_func(elem, 'b', 1)
+        assert elem.get('b') == '1'
+
+        # wrong type
+        schema = etree.fromstring("<xs:schema xmlns:xs='http://www"
+                                  ".w3.org/2001/XMLSchema'>"
+                                  "<xs:element name='a'>"
+                                  "<xs:complexType>"
+                                  "<xs:attribute name='b' type='xs:integer'/>"
+                                  "</xs:complexType>"
+                                  "</xs:element>"
+                                  "</xs:schema>")
+        elem = make_element('a')
+        elem._schema_element = schema[0]
         with pytest.raises(ValueError):
-            name.set_attribute('position', 'Top')
+            test_func(elem, 'b', 'boop')
+        assert elem.get('b') is None
+
+        # restriction
+        schema = etree.fromstring("<xs:schema xmlns:xs='http://www"
+                                  ".w3.org/2001/XMLSchema'>"
+                                  "<xs:element name='a'>"
+                                  "<xs:complexType>"
+                                  "<xs:attribute name='b'>"
+                                  "<xs:simpleType>"
+                                  "<xs:restriction base='xs:string'>"
+                                  "<xs:enumeration value='doop'/>"
+                                  "</xs:restriction>"
+                                  "</xs:simpleType>"
+                                  "</xs:attribute>"
+                                  "</xs:complexType>"
+                                  "</xs:element>"
+                                  "</xs:schema>")
+        elem = make_element('a')
+        elem._schema_element = schema[0]
+        with pytest.raises(ValueError):
+            test_func(elem, 'b', 'boop')
+        assert elem.get('b') is None
 
     def composite_dependency_valid_children(self):
         file_dep_child = parser._ChildElement('fileDependency', None, 1)
