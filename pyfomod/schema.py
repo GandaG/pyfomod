@@ -113,7 +113,10 @@ def get_order_elem(container):
     ord_exp = "*[local-name()='all'] | " \
               "*[local-name()='sequence'] | " \
               "*[local-name()='choice']"
-    return container.xpath(ord_exp)[0]
+    try:
+        return container.xpath(ord_exp)[0]
+    except IndexError:
+        return None
 
 
 def get_group_ref(element):

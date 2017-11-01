@@ -61,6 +61,9 @@ def test_get_order_elem():
     test_func = schema.get_order_elem
 
     tree = etree.Element('tree')
+    assert test_func(tree) is None
+
+    tree = etree.Element('tree')
     order = etree.SubElement(tree, 'all')
     assert test_func(tree) is order
 
