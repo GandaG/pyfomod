@@ -24,7 +24,6 @@ from lxml import etree
 
 import pyfomod
 
-from .exceptions import InvalidArgument
 from .schema import (copy_schema, get_attribute_type, get_builtin_value,
                      get_complex_type, get_doc_text, get_max_occurs,
                      get_min_occurs, get_order_from_elem, get_order_from_group,
@@ -380,7 +379,7 @@ class FomodElement(etree.ElementBase):
         """
         Checks if possible attribute name is possible within the schema.
         Returns the _Attribute namedtuple for the possible attribute.
-        If there is no possible attribute, raises InvalidArgument.
+        If there is no possible attribute, raises ValueError.
         """
         valid_attrs = self.valid_attributes()
         possible_attr = None
@@ -390,7 +389,8 @@ class FomodElement(etree.ElementBase):
                 break
 
         if possible_attr is None:
-            raise InvalidArgument()
+            raise ValueError("Attribute " + name +
+                             "is not allowed by the schema.")
         else:
             return possible_attr
 
@@ -403,7 +403,7 @@ class FomodElement(etree.ElementBase):
             The attribute's value.
 
         Raises:
-            InvalidArgument: If the attribute is not allowed by the schema.
+            ValueError: If the attribute is not allowed by the schema.
         """
         existing_attr = self.get(name)
         if existing_attr is not None:
@@ -421,9 +421,7 @@ class FomodElement(etree.ElementBase):
             value (str): The attribute's value.
 
         Raises:
-            ValueError: If the value is not allowed by the attribute's
-                restrictions.
-            InvalidArgument: If the attribute is not allowed by the schema.
+            ValueError: If the attribute is not allowed by the schema.
         """
         possible_attr = self._find_valid_attribute(name)
         if possible_attr.restriction is not None:
@@ -569,11 +567,9 @@ class FomodElement(etree.ElementBase):
 
             It is therefore recommended to use this pattern::
 
-                from pyfomod.exceptions import InvalidArgument
-
                 try:
                     element.add_child(child)
-                except InvalidArgument:
+                except ValueError:
                     pass
 
             Instead of::
@@ -629,7 +625,7 @@ class FomodElement(etree.ElementBase):
 
         Raises:
             TypeError: If child is neither a string nor FomodElement.
-            InvalidArgument: If the child cannot be added to this element.
+            ValueError: If the child cannot be added to this element.
         """
         tag = ""
         child_is_tag = False
@@ -644,7 +640,7 @@ class FomodElement(etree.ElementBase):
 
         index = self._find_possible_index(tag)
         if index is None:
-            raise InvalidArgument()
+            raise ValueError("Child" + tag + "can't be added to this element.")
 
         if child_is_tag:
             child = etree.SubElement(self, tag)
@@ -693,15 +689,14 @@ class FomodElement(etree.ElementBase):
 
         Raises:
             TypeError: If child is not a FomodElement.
-            ValueError: If child is not a child of this element.
-            InvalidArgument: If child cannot be removed from this element.
+            ValueError: If child cannot be removed from this element.
         """
         if self.can_remove_child(child):
             if child._comment is not None:
                 self.remove(child._comment)
             self.remove(child)
         else:
-            raise InvalidArgument()
+            raise ValueError("Child cannot be removed by schema restrictions.")
 
     def can_replace_child(self, old_child, new_child):
         """
@@ -748,8 +743,7 @@ class FomodElement(etree.ElementBase):
 
         Raises:
             TypeError: If either argument is not a FomodElement.
-            ValueError: If old_child is not a child of this element.
-            InvalidArgument: If old_child can't be replaced by new_child.
+            ValueError: If old_child can't be replaced by new_child.
         """
         if self.can_replace_child(old_child, new_child):
             parent = new_child.getparent()
@@ -762,7 +756,7 @@ class FomodElement(etree.ElementBase):
                 self.insert(index, new_child._comment)
             self.replace(old_child, new_child)
         else:
-            raise InvalidArgument()
+            raise ValueError("Child cannot be replaced.")
 
     def __copy__(self):
         return self.__deepcopy__(None)

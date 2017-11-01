@@ -6,7 +6,7 @@ import mock
 import pyfomod
 import pytest
 from helpers import ElementTest, assert_elem_eq
-from pyfomod import exceptions, parser
+from pyfomod import parser
 
 # tests that need a modifiable tree should use schema_mod fixture and
 # get the schema directly from pyfomod instead of using this variable
@@ -208,7 +208,7 @@ class Test_FomodElement:
 
     def test_find_valid_attribute_valueerror(self, simple_parse):
         name = simple_parse[0][1]
-        with pytest.raises(exceptions.InvalidArgument):
+        with pytest.raises(ValueError):
             name._find_valid_attribute('anyAttribute')
 
     def test_get_attribute_existing(self, simple_parse):
@@ -460,12 +460,15 @@ class Test_FomodElement:
 
     def test_add_child_error(self):
         test_func = parser.FomodElement.add_child
+
         mock_self = mock.Mock(spec=parser.FomodElement)
         with pytest.raises(TypeError):
             test_func(mock_self, 0)
+
         mock_self._find_possible_index.return_value = None
         mock_child = mock.Mock(spec=parser.FomodElement)
-        with pytest.raises(exceptions.InvalidArgument):
+        mock_child.tag = "a"
+        with pytest.raises(ValueError):
             test_func(mock_self, mock_child)
 
     @mock.patch('lxml.etree.SubElement')
@@ -583,7 +586,7 @@ class Test_FomodElement:
         test_func = parser.FomodElement.remove_child
         mock_self = mock.Mock(spec=parser.FomodElement)
         mock_self.can_remove_child.return_value = False
-        with pytest.raises(exceptions.InvalidArgument):
+        with pytest.raises(ValueError):
             test_func(mock_self, 0)
 
     def test_remove_child_normal(self):
@@ -651,7 +654,7 @@ class Test_FomodElement:
         test_func = parser.FomodElement.replace_child
         mock_self = mock.Mock(spec=parser.FomodElement)
         mock_self.can_replace_child.return_value = False
-        with pytest.raises(exceptions.InvalidArgument):
+        with pytest.raises(ValueError):
             test_func(mock_self, 0, 0)
 
     def test_replace_child_normal(self):
