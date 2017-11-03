@@ -1,5 +1,3 @@
-from copy import copy, deepcopy
-
 from lxml import etree
 
 import mock
@@ -723,35 +721,65 @@ class Test_FomodElement:
         mock_self.replace.assert_called_once_with(mock_old, mock_new)
 
     def test_copy(self):
-        root = etree.fromstring("<fomod attr='1'>text</fomod>",
-                                parser=parser.FOMOD_PARSER)
-        root_copy = copy(root)
-        root_deep = deepcopy(root)
-        assert_elem_eq(root, root_copy)
-        assert_elem_eq(root, root_deep)
-        assert_elem_eq(root_copy, root_deep)
+        test_func = parser.FomodElement.__copy__
+        ElementTest.__copy__ = parser.FomodElement.__copy__
+        ElementTest.__deepcopy__ = mock_copy = mock.Mock()
+
+        elem = make_element('a')
+        test_func(elem)
+        mock_copy.assert_called_once()
 
     def test_deepcopy_root(self):
-        root = etree.fromstring("<fomod attr='1'/>",
-                                parser=parser.FOMOD_PARSER)
-        root_copy = deepcopy(root)
-        assert_elem_eq(root, root_copy)
+        test_func = parser.FomodElement.__deepcopy__
+        ElementTest._comment = None
+        ElementTest.comment = parser.FomodElement.comment
+        ElementTest.__deepcopy__ = parser.FomodElement.__deepcopy__
 
-    def test_deepcopy_child(self):
-        child = etree.fromstring("<fomod><Name>text</Name>tail</fomod>",
-                                 parser=parser.FOMOD_PARSER)[0]
-        child_copy = deepcopy(child)
-        assert_elem_eq(child, child_copy)
+        # root with text
+        schema = etree.fromstring("<xs:schema xmlns:xs='http://www"
+                                  ".w3.org/2001/XMLSchema'>"
+                                  "<xs:element name='a' type='xs:string'/>"
+                                  "</xs:schema>")
+        elem = make_element('a')
+        elem.text = 'text'
+        elem.makeelement = make_element
+        elem._schema_element = schema[0]
+        assert_elem_eq(test_func(elem, None), elem)
 
-    def test_deepcopy_children(self):
-        root = etree.fromstring("<fomod><Name/>"
-                                "<!--comment--><Author/>"
-                                "<Version/></fomod>",
-                                parser=parser.FOMOD_PARSER)
-        root_copy = deepcopy(root)
-        assert len(root) == len(root_copy)
-        for index in range(0, len(root)):
-            assert_elem_eq(root[index], root_copy[index])
+        # child with grandchildren and comment
+        schema = etree.fromstring("<xs:schema xmlns:xs='http://www"
+                                  ".w3.org/2001/XMLSchema'>"
+                                  "<xs:element name='a'>"
+                                  "<xs:complexType>"
+                                  "<xs:sequence>"
+                                  "<xs:element name='b'>"
+                                  "<xs:complexType>"
+                                  "<xs:sequence>"
+                                  "<xs:element name='c'/>"
+                                  "<xs:element name='d'/>"
+                                  "</xs:sequence>"
+                                  "</xs:complexType>"
+                                  "</xs:element>"
+                                  "</xs:sequence>"
+                                  "</xs:complexType>"
+                                  "</xs:element>"
+                                  "</xs:schema>")
+        lookup = etree.ElementDefaultClassLookup(element=ElementTest)
+        xml_parser = etree.XMLParser()
+        xml_parser.set_element_class_lookup(lookup)
+        root = etree.fromstring("<a><b><c/><d/></b></a>", xml_parser)
+        elem = root[0]
+        elem.makeelement = make_element
+        elem._schema_element = schema[0][0][0][0]
+        elem._comment = etree.Comment('comment')
+        elem.addprevious(elem._comment)
+        elem_c = elem[0]
+        elem_c.makeelement = make_element
+        elem_c._schema_element = schema[0][0][0][0][0][0][0]
+        elem_d = elem[1]
+        elem_d.makeelement = make_element
+        elem_d._schema_element = schema[0][0][0][0][0][0][1]
+        assert_elem_eq(test_func(elem, None), elem)
 
 
 class Test_FomodLookup:

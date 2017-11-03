@@ -786,7 +786,8 @@ class FomodElement(etree.ElementBase):
                                          nsmap=self.nsmap)
             parent.remove(copy_elem)
 
-        copy_elem._comment = deepcopy(self._comment)
+        if self._comment is not None:
+            copy_elem.comment = self._comment.text
         copy_elem.text = self.text
         copy_elem.tail = self.tail
 
