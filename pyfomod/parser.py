@@ -296,6 +296,20 @@ class FomodElement(etree.ElementBase):
 
         return current_element
 
+    def _assert_valid(self):
+        """
+        Validates self and below to make
+        sure everything will work properly.
+        """
+        self_schema = copy_schema(self._schema_element)
+        self_copy = self._copy_element(self)
+        try:
+            assert_valid(self_copy, self_schema)
+        except AssertionError as exc:
+            raise RuntimeError("This element is invalid with the following "
+                               "message: " + str(exc) + "\nCorrect this "
+                               "before using this API.")
+
     def valid_attributes(self):
         """
         Gets all possible attributes of this element
@@ -308,6 +322,8 @@ class FomodElement(etree.ElementBase):
                 this element can have. For more info refer to
                 :py:class:`_Attribute`.
         """
+        self._assert_valid()
+
         if not is_complex_element(self._schema_element):
             return []
 
@@ -406,6 +422,8 @@ class FomodElement(etree.ElementBase):
         Raises:
             ValueError: If the attribute is not allowed by the schema.
         """
+        self._assert_valid()
+
         existing_attr = self.get(name)
         if existing_attr is not None:
             return existing_attr
@@ -424,6 +442,8 @@ class FomodElement(etree.ElementBase):
         Raises:
             ValueError: If the attribute or value is not allowed by the schema.
         """
+        self._assert_valid()
+
         value = str(value)
 
         # it is possible to simplify all of this into the second portion
@@ -456,6 +476,8 @@ class FomodElement(etree.ElementBase):
                 its structure refer to :py:class:`_OrderIndicator`.
                 `None` if this element has no valid children.
         """
+        self._assert_valid()
+
         order_elem = get_order_from_elem(self._schema_element)
         if order_elem is None:
             return None
@@ -589,6 +611,8 @@ class FomodElement(etree.ElementBase):
                 if element.can_add_child(child):
                     element.add_child(child)
         """
+        self._assert_valid()
+
         tag = ""
         if isinstance(child, str):
             tag = child
@@ -639,6 +663,8 @@ class FomodElement(etree.ElementBase):
             TypeError: If child is neither a string nor FomodElement.
             ValueError: If the child cannot be added to this element.
         """
+        self._assert_valid()
+
         tag = ""
         child_is_tag = False
         if isinstance(child, str):
@@ -679,6 +705,8 @@ class FomodElement(etree.ElementBase):
             TypeError: If child is not a FomodElement.
             ValueError: If child is not a child of this element.
         """
+        self._assert_valid()
+
         if not isinstance(child, FomodElement):
             raise TypeError("child argument must be a FomodElement.")
         elif child not in self:
@@ -703,6 +731,8 @@ class FomodElement(etree.ElementBase):
             TypeError: If child is not a FomodElement.
             ValueError: If child cannot be removed from this element.
         """
+        self._assert_valid()
+
         if self.can_remove_child(child):
             if child._comment is not None:
                 self.remove(child._comment)
@@ -725,6 +755,8 @@ class FomodElement(etree.ElementBase):
             TypeError: If either argument is not a FomodElement.
             ValueError: If old_child is not a child of this element.
         """
+        self._assert_valid()
+
         if not (isinstance(old_child, FomodElement) or
                 isinstance(new_child, FomodElement)):
             raise TypeError("child arguments must be a FomodElement.")
@@ -757,6 +789,8 @@ class FomodElement(etree.ElementBase):
             TypeError: If either argument is not a FomodElement.
             ValueError: If old_child can't be replaced by new_child.
         """
+        self._assert_valid()
+
         if self.can_replace_child(old_child, new_child):
             parent = new_child.getparent()
             if parent is not None:
@@ -774,6 +808,8 @@ class FomodElement(etree.ElementBase):
         return self.__deepcopy__(None)
 
     def __deepcopy__(self, memo):
+        self._assert_valid()
+
         parent = self.getparent()
         if parent is None:
             copy_elem = self.makeelement(self.tag,

@@ -119,6 +119,25 @@ class Test_FomodElement:
         file_dep = simple_parse[1][2][1]
         assert file_dep._schema_element is fomod_schema[4][1][0][0]
 
+    def test_assert_valid(self):
+        test_func = parser.FomodElement._assert_valid
+        ElementTest._copy_element = parser.FomodElement._copy_element
+
+        schema = etree.fromstring("<xs:schema xmlns:xs='http://www"
+                                  ".w3.org/2001/XMLSchema'>"
+                                  "<xs:element name='a' type='xs:integer'/>"
+                                  "</xs:schema>")
+        elem = make_element('a', 'text')
+        elem._schema_element = schema[0]
+        with pytest.raises(RuntimeError) as exc_info:
+            test_func(elem)
+
+        assert str(exc_info.value) == ("This element is invalid with the "
+                                       "following message: Element 'a': 'text'"
+                                       " is not a valid value of the atomic "
+                                       "type 'xs:integer'.\nCorrect this "
+                                       "before using this API.")
+
     def test_valid_attributes(self):
         test_func = parser.FomodElement.valid_attributes
 
@@ -223,6 +242,7 @@ class Test_FomodElement:
             parser.FomodElement._find_valid_attribute
         ElementTest.valid_attributes = parser.FomodElement.valid_attributes
         ElementTest._copy_element = parser.FomodElement._copy_element
+        ElementTest._assert_valid = parser.FomodElement._assert_valid
 
         # normal
         schema = etree.fromstring("<xs:schema xmlns:xs='http://www"
