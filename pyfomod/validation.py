@@ -386,16 +386,16 @@ class UnusedFilesError(ErrorChecker):
 
         for elem in element.iterfind('.//file'):
             path = os.path.join(installer_path, elem.get('source'))
-            used_files.append(path)
+            used_files.append(path.replace('/', os.sep))
         for elem in element.iterfind('.//folder'):
             path = os.path.join(installer_path, elem.get('source'))
-            used_folders.append(path)
+            used_folders.append(path.replace('/', os.sep))
         for elem in element.iterfind('.//image'):
             path = os.path.join(installer_path, elem.get('path'))
-            used_files.append(path)
+            used_files.append(path.replace('/', os.sep))
         for elem in element.iterfind('.//moduleImage'):
             path = os.path.join(installer_path, elem.get('path'))
-            used_files.append(path)
+            used_files.append(path.replace('/', os.sep))
 
         try:
             used_files.extend(get_installer_files(installer_path))
