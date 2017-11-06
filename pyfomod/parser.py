@@ -201,6 +201,13 @@ class FomodElement(etree.ElementBase):
 
     @classmethod
     def _copy_element(cls, element, copy_level=0):
+        """
+        Provides a copy of ``element`` using the default element from lxml.
+        Strictly for usage with validation/simulation scenarios.
+
+        ``copy_level`` determines the level to copy to. ``-1`` refers to a
+        full deepcopy, ``0`` is a shallow copy.
+        """
         copy = etree.Element(element.tag,
                              attrib=element.attrib,
                              nsmap=element.nsmap)
@@ -208,7 +215,7 @@ class FomodElement(etree.ElementBase):
         copy.tail = element.tail
 
         if copy_level != 0:
-            for child in element:
+            for child in element.iterchildren(etree.Element):
                 copy.append(cls._copy_element(child, copy_level - 1))
 
         return copy
@@ -301,8 +308,8 @@ class FomodElement(etree.ElementBase):
         Validates self and below to make
         sure everything will work properly.
         """
-        self_schema = copy_schema(self._schema_element)
-        self_copy = self._copy_element(self)
+        self_schema = copy_schema(self._schema_element, copy_level=-1)
+        self_copy = self._copy_element(self, copy_level=-1)
         try:
             assert_valid(self_copy, self_schema)
         except AssertionError as exc:
