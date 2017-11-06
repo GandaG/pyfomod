@@ -811,6 +811,100 @@ class FomodElement(etree.ElementBase):
         else:
             raise ValueError("Child cannot be replaced.")
 
+    def can_reorder_child(self, child, move):
+        """
+        Checks if a given child can be reordered by the given amount.
+        To check whether the child can be reordered at all pass *0* to
+        ``move``.
+
+        This is only possible if there are at least two children with the
+        same tag as ``child`` and ``move`` does not exceed the movement
+        restrictions.
+
+        Args:
+            child (FomodElement): The child element to reorder.
+            move (int): The amount to move the child by.
+                If negative the child is moved back and if positive
+                the child is moved forward.
+
+        Returns:
+            bool: Whether the child can be reordered by the given amount.
+
+        Raises:
+            ValueError: If child is not a child of this element.
+        """
+        self._assert_valid()
+
+        if child not in self:
+            raise ValueError("child is not a child of this element.")
+
+        child_list = self.findall(child.tag)
+        if len(child_list) < 2:
+            return False
+
+        index = child_list.index(child)
+        if -(index) <= move <= (len(child_list) - 1 - index):
+            return True
+
+        return False
+
+    def reorder_child(self, child, move):
+        """
+        Reorders ``child`` by the ``move`` amount.
+
+        If ``move`` is negative the child will be moved back and if positive
+        it will be moved forward. Any attached comments will also be reordered.
+
+        Passing *0* to ``move`` will do nothing.
+
+        Args:
+            child (FomodElement): The child element to reorder.
+            move (int): The amount to move the child by.
+
+        Raises:
+            ValueError: If child can't be reordered.
+                See also :func:`~FomodElement.can_reorder_child`.
+
+        Example:
+            >>> parent
+            <Element parent at 0x000000000001>
+            >>> pprint(list(parent))
+            [<Element child at 0x0000002>,
+             <Element child at 0x0000003>,
+             <Element child at 0x0000004>,
+             <Element child at 0x0000005>,
+             <Element child at 0x0000006>]
+            >>> parent.reorder_child(parent[2], 2)
+            >>> pprint(list(parent))
+            [<Element child at 0x0000002>,
+             <Element child at 0x0000003>,
+             <Element child at 0x0000005>,
+             <Element child at 0x0000006>,
+             <Element child at 0x0000004>]
+            >>> parent.reorder_child(parent[2], -1)
+            >>> pprint(list(parent))
+            [<Element child at 0x0000002>,
+             <Element child at 0x0000005>,
+             <Element child at 0x0000003>,
+             <Element child at 0x0000004>,
+             <Element child at 0x0000006>]
+        """
+        if not self.can_reorder_child(child, move):
+            raise ValueError("child cannot be reordered.")
+
+        index = self.index(child)
+        change = index + move
+        if move > 0:
+            change += 1
+            change += len(list(child.itersiblings(etree.Comment)))
+        else:
+            change -= len(list(child.itersiblings(etree.Comment,
+                                                  preceding=True)))
+
+        self.insert(change, child)
+        if child._comment is not None:
+            self.insert(self.index(child), child._comment)
+
     def __copy__(self):
         return self.__deepcopy__(None)
 
