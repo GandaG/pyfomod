@@ -309,6 +309,10 @@ def copy_schema(element, make_root=True, copy_level=0, rm_attr=False):
                                  maxOccurs='unbounded')
             else:
                 for elem in get_order_from_elem(element).iter('{*}element'):
+                    if (is_separate_element(elem) and
+                            any(True for a in results
+                                if a.get('name') == elem.get('type'))):
+                        continue
                     for spec in copy_schema(elem, False, copy_level - 1)[1:]:
                         exists = any(True for a in results
                                      if a.get('name') == spec.get('name'))
