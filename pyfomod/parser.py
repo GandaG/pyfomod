@@ -803,10 +803,10 @@ class FomodElement(etree.ElementBase):
             if parent is not None:
                 parent.remove_child(new_child)
             index = self.index(old_child)
-            if old_child._comment is not None:
-                self.remove(old_child._comment)
             if new_child._comment is not None:
                 self.insert(index, new_child._comment)
+            if old_child._comment is not None:
+                self.remove(old_child._comment)
             self.replace(old_child, new_child)
         else:
             raise ValueError("Child cannot be replaced.")
