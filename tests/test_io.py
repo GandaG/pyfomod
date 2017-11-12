@@ -1,5 +1,4 @@
 import os
-from distutils.dir_util import copy_tree
 
 import pytest
 from pyfomod import io
@@ -17,22 +16,27 @@ class Test_get_installer_files:
         with pytest.raises(IOError):
             io.get_installer_files(fake_path)
 
-    def test_missing_info(self, example_fomod, tmpdir):
-        copy_tree(example_fomod, str(tmpdir))
-        info_path = os.path.join(str(tmpdir), 'fomod', 'info.xml')
-        os.remove(info_path)
+    def test_missing_info(self, tmpdir):
+        tmpdir = str(tmpdir)
+        os.makedirs(os.path.join(tmpdir, 'fomod'))
+        open(os.path.join(tmpdir, 'fomod', 'info.xml'), 'a').close()
         with pytest.raises(IOError):
-            io.get_installer_files(str(tmpdir))
+            io.get_installer_files(tmpdir)
 
-    def test_missing_config(self, example_fomod, tmpdir):
-        copy_tree(example_fomod, str(tmpdir))
-        config_path = os.path.join(str(tmpdir), 'fomod', 'ModuleConfig.xml')
-        os.remove(config_path)
+    def test_missing_config(self, tmpdir):
+        tmpdir = str(tmpdir)
+        os.makedirs(os.path.join(tmpdir, 'fomod'))
+        open(os.path.join(tmpdir, 'fomod', 'ModuleConfig.xml'), 'a').close()
         with pytest.raises(IOError):
-            io.get_installer_files(str(tmpdir))
+            io.get_installer_files(tmpdir)
 
-    def test_valid(self, example_fomod):
-        fomod_path = os.path.join(example_fomod, 'fomod')
-        base_files = io.get_installer_files(example_fomod)
-        fomod_files = io.get_installer_files(fomod_path)
-        assert base_files == fomod_files
+    def test_valid(self, tmpdir):
+        tmpdir = str(tmpdir)
+        fomod_path = os.path.join(tmpdir, 'fomod')
+        info_file = os.path.join(fomod_path, 'info.xml')
+        conf_file = os.path.join(fomod_path, 'ModuleConfig.xml')
+        os.makedirs(fomod_path)
+        open(info_file, 'a').close()
+        open(conf_file, 'a').close()
+        assert io.get_installer_files(tmpdir) == (info_file, conf_file)
+        assert io.get_installer_files(fomod_path) == (info_file, conf_file)

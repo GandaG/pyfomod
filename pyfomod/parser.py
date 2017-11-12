@@ -250,25 +250,124 @@ class FomodElement(etree.ElementBase):
                                get_max_occurs(ord_elem),
                                get_min_occurs(ord_elem))
 
-    def _init(self):
+    def _find_valid_attribute(self, name):
         """
-        Used to setup the class, instead of an __init__
-        since lxml doesn't let us use it.
+        Checks if possible attribute name is possible within the schema.
+        Returns the _Attribute namedtuple for the possible attribute.
+        If there is no possible attribute, raises ValueError.
         """
-        # pylint: disable=attribute-defined-outside-init
+        valid_attrs = self.valid_attributes()
+        possible_attr = None
+        for attr in valid_attrs:
+            if attr.name == name:
+                possible_attr = attr
+                break
 
-        # the schema this element belongs to
-        self._schema = pyfomod.FOMOD_SCHEMA_TREE
+        if possible_attr is None:
+            raise ValueError("Attribute " + name +
+                             "is not allowed by the schema.")
+        else:
+            return possible_attr
 
-        # the element that holds minOccurs, etc.
-        self._schema_element = self._lookup_element()
+    def _required_children_choice(self, choice):
+        """
+        Returns the required children of a choice order indicator.
+        Always selects the first path in the choice, regardless of
+        the actual children.
+        It's probably a good idea to eventually try to make it choose
+        the correct path based on the existing children.
+        """
+        req_child = []
+        try:
+            selected_path = choice.element_list[0]
+        except IndexError:
+            return []
 
-        # the comment associated with this element.
-        # this comment always exists before the element.
-        self._comment = None
-        if (self.getprevious() is not None and
-                self.getprevious().tag is etree.Comment):
-            self._comment = self.getprevious()
+        if isinstance(selected_path, _OrderIndicator):
+            if selected_path.type == 'choice':
+                req_child.extend(self._required_children_choice(selected_path))
+            else:
+                req_child.extend(
+                    self._required_children_sequence(selected_path))
+        elif selected_path.min_occ > 0:
+            req_child.append((selected_path.tag, selected_path.min_occ))
+
+        for index in range(0, len(req_child)):
+            req_child[index] = (req_child[index][0],
+                                req_child[index][1] * choice.min_occ)
+
+        return req_child
+
+    def _required_children_sequence(self, sequence):
+        """
+        Returns the required children of a sequence order indicator.
+        """
+        req_child = []
+
+        for elem in sequence.element_list:
+            if isinstance(elem, _OrderIndicator):
+                if elem.type == 'choice':
+                    req_child.extend(self._required_children_choice(elem))
+                else:
+                    req_child.extend(self._required_children_sequence(elem))
+            elif elem.min_occ > 0:
+                req_child.append((elem.tag, elem.min_occ))
+
+        for index in range(0, len(req_child)):
+            req_child[index] = (req_child[index][0],
+                                req_child[index][1] * sequence.min_occ)
+
+        return req_child
+
+    def _find_possible_index(self, tag):
+        """
+        Tries to figure out if a child can be added to this element,
+        and if it can, what index it should be inserted at.
+
+        To this end, a shallow copy of this element's schema correspondence
+        and it's possible children is performed.
+        After, the same is done to this element and it's real children.
+        A test element with the child's tag is created.
+        This test element is then inserted at every possible position in the
+        copy of self (reversed order) until a valid position is found.
+        """
+        schema_elem = copy_schema(self._schema_element,
+                                  copy_level=1, rm_attr=True)
+        self_copy = self._copy_element(self, copy_level=1)
+
+        test_elem = etree.Element(tag)
+        schema = etree.XMLSchema(schema_elem)
+
+        self_copy.append(test_elem)
+        if schema.validate(self_copy):
+            return -1
+
+        for index in reversed(range(len(self_copy))):
+            self_copy.insert(index, test_elem)
+            if schema.validate(self_copy):
+                return index
+
+        return None
+
+    def _setup_new_element(self):
+        """
+        Sets up a newly created element (self) by adding the required
+        attributes and any required children (bypass validation checks).
+        """
+        for attr in self.required_attributes():
+            if attr.default is not None:
+                self.set_attribute(attr.name, attr.default)
+            elif (attr.restriction is not None and
+                  'enumeration' in attr.restriction.type):
+                self.set_attribute(attr.name,
+                                   attr.restriction.enum_list[0].value)
+            else:
+                self.set_attribute(attr.name, '')
+
+        for elem in self.required_children():
+            for _ in range(0, elem[1]):
+                child = etree.SubElement(self, elem[0])
+                child._setup_new_element()
 
     def _lookup_element(self):
         """
@@ -316,6 +415,26 @@ class FomodElement(etree.ElementBase):
             raise RuntimeError("This element is invalid with the following "
                                "message: " + str(exc) + "\nCorrect this "
                                "before using this API.")
+
+    def _init(self):
+        """
+        Used to setup the class, instead of an __init__
+        since lxml doesn't let us use it.
+        """
+        # pylint: disable=attribute-defined-outside-init
+
+        # the schema this element belongs to
+        self._schema = pyfomod.FOMOD_SCHEMA_TREE
+
+        # the element that holds minOccurs, etc.
+        self._schema_element = self._lookup_element()
+
+        # the comment associated with this element.
+        # this comment always exists before the element.
+        self._comment = None
+        if (self.getprevious() is not None and
+                self.getprevious().tag is etree.Comment):
+            self._comment = self.getprevious()
 
     def valid_attributes(self):
         """
@@ -399,25 +518,6 @@ class FomodElement(etree.ElementBase):
         valid_attrib = self.valid_attributes()
         return [attr for attr in valid_attrib if attr.use == 'required']
 
-    def _find_valid_attribute(self, name):
-        """
-        Checks if possible attribute name is possible within the schema.
-        Returns the _Attribute namedtuple for the possible attribute.
-        If there is no possible attribute, raises ValueError.
-        """
-        valid_attrs = self.valid_attributes()
-        possible_attr = None
-        for attr in valid_attrs:
-            if attr.name == name:
-                possible_attr = attr
-                break
-
-        if possible_attr is None:
-            raise ValueError("Attribute " + name +
-                             "is not allowed by the schema.")
-        else:
-            return possible_attr
-
     def get_attribute(self, name):
         """
         Args:
@@ -491,56 +591,6 @@ class FomodElement(etree.ElementBase):
 
         return self._valid_children_parse_order(order_elem)
 
-    def _required_children_choice(self, choice):
-        """
-        Returns the required children of a choice order indicator.
-        Always selects the first path in the choice, regardless of
-        the actual children.
-        It's probably a good idea to eventually try to make it choose
-        the corrent path based on the existing children.
-        """
-        req_child = []
-        try:
-            selected_path = choice.element_list[0]
-        except IndexError:
-            return []
-
-        if isinstance(selected_path, _OrderIndicator):
-            if selected_path.type == 'choice':
-                req_child.extend(self._required_children_choice(selected_path))
-            else:
-                req_child.extend(
-                    self._required_children_sequence(selected_path))
-        elif selected_path.min_occ > 0:
-            req_child.append((selected_path.tag, selected_path.min_occ))
-
-        for index in range(0, len(req_child)):
-            req_child[index] = (req_child[index][0],
-                                req_child[index][1] * choice.min_occ)
-
-        return req_child
-
-    def _required_children_sequence(self, sequence):
-        """
-        Returns the required children of a sequence order indicator.
-        """
-        req_child = []
-
-        for elem in sequence.element_list:
-            if isinstance(elem, _OrderIndicator):
-                if elem.type == 'choice':
-                    req_child.extend(self._required_children_choice(elem))
-                else:
-                    req_child.extend(self._required_children_sequence(elem))
-            elif elem.min_occ > 0:
-                req_child.append((elem.tag, elem.min_occ))
-
-        for index in range(0, len(req_child)):
-            req_child[index] = (req_child[index][0],
-                                req_child[index][1] * sequence.min_occ)
-
-        return req_child
-
     def required_children(self):
         """
         Returns a list with the required children by this element.
@@ -557,36 +607,6 @@ class FomodElement(etree.ElementBase):
         elif valid_children.type == 'choice':
             return self._required_children_choice(valid_children)
         return self._required_children_sequence(valid_children)
-
-    def _find_possible_index(self, tag):
-        """
-        Tries to figure out if a child can be added to this element,
-        and if it can, what index it should be inserted at.
-
-        To this end, a shallow copy of this element's schema correspondence
-        and it's possible children is performed.
-        After, the same is done to this element and it's real children.
-        A test element with the child's tag is created.
-        This test element is then inserted at every possible position in the
-        copy of self (reversed order) until a valid position is found.
-        """
-        schema_elem = copy_schema(self._schema_element,
-                                  copy_level=1, rm_attr=True)
-        self_copy = self._copy_element(self, copy_level=1)
-
-        test_elem = etree.Element(tag)
-        schema = etree.XMLSchema(schema_elem)
-
-        self_copy.append(test_elem)
-        if schema.validate(self_copy):
-            return -1
-
-        for index in reversed(range(len(self_copy))):
-            self_copy.insert(index, test_elem)
-            if schema.validate(self_copy):
-                return index
-
-        return None
 
     def can_add_child(self, child):
         """
@@ -635,26 +655,6 @@ class FomodElement(etree.ElementBase):
         if self._find_possible_index(tag) is None:
             return False
         return True
-
-    def _setup_new_element(self):
-        """
-        Sets up a newly created element (self) by adding the required
-        attributes and any required children (bypass validation checks).
-        """
-        for attr in self.required_attributes():
-            if attr.default is not None:
-                self.set_attribute(attr.name, attr.default)
-            elif (attr.restriction is not None and
-                  'enumeration' in attr.restriction.type):
-                self.set_attribute(attr.name,
-                                   attr.restriction.enum_list[0].value)
-            else:
-                self.set_attribute(attr.name, '')
-
-        for elem in self.required_children():
-            for _ in range(0, elem[1]):
-                child = etree.SubElement(self, elem[0])
-                child._setup_new_element()
 
     def add_child(self, child):
         """
