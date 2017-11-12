@@ -24,11 +24,11 @@ from lxml import etree
 
 import pyfomod
 
-from .schema import (copy_schema, get_attribute_type, get_builtin_value,
-                     get_complex_type, get_doc_text, get_max_occurs,
-                     get_min_occurs, get_order_from_elem, get_order_from_group,
-                     get_order_from_type, is_builtin_attribute,
-                     is_complex_element, localname)
+from .schema import (copy_schema, get_attribute_type, get_builtin_type,
+                     get_builtin_value, get_complex_type, get_doc_text,
+                     get_max_occurs, get_min_occurs, get_order_from_elem,
+                     get_order_from_group, get_order_from_type,
+                     is_builtin_attribute, is_complex_element, localname)
 from .validation import assert_valid
 
 _Attribute = namedtuple('_Attribute', "name doc default type use restriction")
@@ -131,7 +131,7 @@ class FomodElement(etree.ElementBase):
         int:
             Returns the minimum times this element has to be repeated.
         """
-        return int(self._schema_element.get('minOccurs', 1))
+        return get_min_occurs(self._schema_element)
 
     @property
     def type(self):
@@ -141,7 +141,7 @@ class FomodElement(etree.ElementBase):
             allowed.
         """
         if not is_complex_element(self._schema_element):
-            return self._schema_element.get('type')[3:]
+            return get_builtin_type(self._schema_element)
 
         base_exp = ("*[local-name()='simpleContent']/"
                     "*[local-name()='extension'] | "
