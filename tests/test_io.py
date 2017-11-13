@@ -40,3 +40,13 @@ class Test_get_installer_files:
         open(conf_file, 'a').close()
         assert io.get_installer_files(tmpdir) == (info_file, conf_file)
         assert io.get_installer_files(fomod_path) == (info_file, conf_file)
+
+    def test_create_missing(self, tmpdir):
+        tmpdir = str(tmpdir)
+        fomod_path = os.path.join(tmpdir, 'fomod')
+        info_file = os.path.join(fomod_path, 'info.xml')
+        conf_file = os.path.join(fomod_path, 'ModuleConfig.xml')
+        assert io.get_installer_files(tmpdir, True) == (info_file, conf_file)
+        assert os.path.isdir(fomod_path)
+        assert io.get_installer_files(fomod_path, True) == (info_file,
+                                                            conf_file)

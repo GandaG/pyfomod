@@ -19,7 +19,7 @@ This module handles all IO (including parsing and serializing).
 import os
 
 
-def get_installer_files(search_path):
+def get_installer_files(search_path, create_missing=False):
     """
     Searches and returns the installer files from a package or sub path.
 
@@ -34,6 +34,10 @@ def get_installer_files(search_path):
 
             * `folder/somefolder/` - *somefolder* contains a *fomod* subfolder;
             * `folder/somefolder/fomod`.
+        create_missing (boolean, optional): If ``True``, instead of raising an
+            exception if there are no fomod files, the file structure is
+            created and the file paths for the newly created structure are
+            returned.
 
     Returns:
         tuple(str, str): Paths to info.xml and ModuleConfig.xml, respectively.
@@ -60,15 +64,19 @@ def get_installer_files(search_path):
 
     # if fomod_path hasn't been found, error out
     if not fomod_path:
-        raise IOError("fomod folder not found")
+        if create_missing:
+            fomod_path = os.path.join(search_path, 'fomod')
+            os.makedirs(fomod_path)
+        else:
+            raise IOError("fomod folder not found")
 
     # grab the files and check if they exist
     info_path = os.path.join(fomod_path, 'info.xml')
-    if not os.path.isfile(info_path):
+    if not os.path.isfile(info_path) and not create_missing:
         raise IOError("info.xml does not exist in the fomod folder")
 
     config_path = os.path.join(fomod_path, 'ModuleConfig.xml')
-    if not os.path.isfile(config_path):
+    if not os.path.isfile(config_path) and not create_missing:
         raise IOError("ModuleConfig.xml does not exist in the fomod folder")
 
     # both files exist, life is good
