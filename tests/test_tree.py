@@ -3,7 +3,7 @@ from lxml import etree
 import mock
 import pyfomod
 import pytest
-from helpers import ElementTest, assert_elem_eq, make_element
+from helpers import ElementTest, assert_elem_eq, make_element, test_parser
 from pyfomod import tree
 
 
@@ -955,3 +955,12 @@ class Test_FomodElement:
         elem_d.makeelement = make_element
         elem_d._schema_element = schema[0][0][0][0][0][0][1]
         assert_elem_eq(test_func(elem, None), elem)
+
+
+class TestRoot():
+    def test_info_root(self):
+        test_func = tree.Root.info_root.fget
+
+        test_parser.info_root = 'success'
+
+        assert test_func(test_parser.makeelement('a')) == 'success'

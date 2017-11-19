@@ -9,6 +9,19 @@ class ElementTest(etree.ElementBase):
     pass
 
 
+class TestParser(etree.XMLParser):
+    """
+    Use this class instead of etree.XMLParser to add attributes
+    as needed for testing.
+    """
+    pass
+
+
+test_parser = TestParser(remove_blank_text=True)
+test_parser.set_element_class_lookup(
+        etree.ElementDefaultClassLookup(element=ElementTest))
+
+
 def make_element(tag, text=None, attrib=None, nsmap=None):
     """Creates and returns an ElementTest with the specified attributes."""
     if attrib is None:

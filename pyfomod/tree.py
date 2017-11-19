@@ -941,7 +941,14 @@ class Root(FomodElement):
     as well as high-level functions and properties to read and modify the
     'ModuleConfig.xml' file.
     """
-    pass
+    @property
+    def info_root(self):
+        """
+        FomodElement:
+            Returns the root of the 'info' xml tree. Used exclusively for
+            accessing the low-level api for the other tree.
+        """
+        return etree.ElementTree(self).parser.info_root
 
 
 class InstallPattern(FomodElement):

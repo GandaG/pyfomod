@@ -1,7 +1,94 @@
+import os
+
 from lxml import etree
 
 import mock
+from helpers import assert_elem_eq, test_parser
 from pyfomod import parser, tree
+
+
+def test_from_string():
+    test_func = parser.from_string
+
+    info_str = "<fomod/>\n"
+    conf_str = "<config>\n  <moduleName/>\n</config>\n"
+
+    tree = test_func(info_str, conf_str)
+    assert_elem_eq(tree.info_root, etree.fromstring(info_str, test_parser))
+    assert_elem_eq(tree, etree.fromstring(conf_str, test_parser))
+
+
+def test_parse(tmpdir):
+    test_func = parser.parse
+    tmpdir = str(tmpdir)
+
+    info_str = "<fomod/>\n"
+    conf_str = "<config>\n  <moduleName/>\n</config>\n"
+
+    fomod_path = os.path.join(tmpdir, 'fomod')
+    info_path = os.path.join(fomod_path, "info.xml")
+    conf_path = os.path.join(fomod_path, "ModuleConfig.xml")
+
+    os.makedirs(fomod_path)
+    with open(info_path, 'w') as info, open(conf_path, 'w') as conf:
+        info.write(info_str)
+        conf.write(conf_str)
+
+    tree = test_func(tmpdir)
+    assert_elem_eq(tree.info_root, etree.fromstring(info_str, test_parser))
+    assert_elem_eq(tree, etree.fromstring(conf_str, test_parser))
+
+    tree = test_func(fomod_path)
+    assert_elem_eq(tree.info_root, etree.fromstring(info_str, test_parser))
+    assert_elem_eq(tree, etree.fromstring(conf_str, test_parser))
+
+    tree = test_func((info_path, conf_path))
+    assert_elem_eq(tree.info_root, etree.fromstring(info_str, test_parser))
+    assert_elem_eq(tree, etree.fromstring(conf_str, test_parser))
+
+
+def test_to_string():
+    test_func = parser.to_string
+
+    xml_decl = b"<?xml version='1.0' encoding='utf-8'?>\n"
+    info_str = b"<fomod/>\n"
+    conf_str = b"<config>\n  <moduleName/>\n</config>\n"
+
+    info_tree = etree.fromstring(info_str, test_parser)
+    conf_tree = etree.fromstring(conf_str, test_parser)
+    conf_tree.info_root = info_tree
+
+    assert (xml_decl + info_str, xml_decl + conf_str) == test_func(conf_tree)
+
+
+@mock.patch('pyfomod.parser.to_string')
+def test_write(mock_to_string, tmpdir):
+    test_func = parser.write
+    tmpdir = str(tmpdir)
+
+    xml_decl = b"<?xml version='1.0' encoding='utf-8'?>\n"
+    info_str = b"<fomod/>\n"
+    conf_str = b"<config>\n  <moduleName/>\n</config>\n"
+
+    mock_to_string.return_value = (xml_decl + info_str,
+                                   xml_decl + conf_str)
+
+    fomod_path = os.path.join(tmpdir, 'fomod')
+    info_path = os.path.join(fomod_path, "info.xml")
+    conf_path = os.path.join(fomod_path, "ModuleConfig.xml")
+
+    test_func("not needed, it's mocked", tmpdir)
+    with open(info_path, 'rb') as info, open(conf_path, 'rb') as conf:
+        assert info.read() == xml_decl + info_str
+        assert conf.read() == xml_decl + conf_str
+
+    os.remove(info_path)
+    os.remove(conf_path)
+
+    test_func("not needed, it's mocked", [info_path, conf_path])
+    with open(info_path, 'rb') as info, open(conf_path, 'rb') as conf:
+        assert info.read() == xml_decl + info_str
+        assert conf.read() == xml_decl + conf_str
 
 
 def test_speciallookup():
@@ -11,7 +98,7 @@ def test_speciallookup():
     only function.
     """
     test_parser = etree.XMLParser()
-    test_parser.set_element_class_lookup(parser._SpecialLookup())
+    test_parser.set_element_class_lookup(parser.SpecialLookup())
     xml_frag = "<root><!--comment--><?processinst?><child/></root>"
 
     parsed = etree.fromstring(xml_frag, test_parser)
@@ -24,6 +111,8 @@ def test_speciallookup():
 @mock.patch('pyfomod.tree.FomodElement._lookup_element')
 def test_fomodlookup(mock_lookup):
     """Same as above"""
+    test_parser = etree.XMLParser()
+    test_parser.set_element_class_lookup(parser.FomodLookup())
     xml_frag = ("<config>"
                 "<dependencies/>"
                 "<moduleDependencies/>"
@@ -36,7 +125,7 @@ def test_fomodlookup(mock_lookup):
                 "<pattern/>"
                 "</unused></conditionalFileInstalls>"
                 "</config>")
-    parsed = etree.fromstring(xml_frag, parser.FOMOD_PARSER)
+    parsed = etree.fromstring(xml_frag, test_parser)
     assert isinstance(parsed, tree.Root)
     assert isinstance(parsed.find('dependencies'), tree.Dependencies)
     assert isinstance(parsed.find('moduleDependencies'), tree.Dependencies)

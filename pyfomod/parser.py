@@ -18,10 +18,141 @@ This module holds the custom parser.
 
 from lxml import etree
 
-from pyfomod import tree
+from pyfomod import io, tree, validation
 
 
-class _SpecialLookup(etree.CustomElementClassLookup):
+def from_string(info, conf):
+    """
+    Accepts strings (or bytestrings) as the fomod xml trees and returns
+    a Root object.
+
+    ``info`` corresponds to the contents of the *info.xml* file.
+    ``conf`` corresponds to the contents of the *ModuleConfig.xml* file.
+
+    Args:
+        info (str, bytes): The contents of the *info.xml* file.
+        conf (str, bytes): The contents of the *ModuleConfig.xml* file.
+
+    Returns:
+        tree.Root: The Root of the fomod installer.
+
+    Raises:
+        AssertionError: If the strings do not contain valid fomod xml.
+    """
+    # the fake parser will be used to get correct element types
+    # during tree builder
+    fake_parser = etree.XMLParser(remove_blank_text=True)
+    fake_parser.set_element_class_lookup(SpecialLookup(FomodLookup()))
+
+    info_tree = etree.fromstring(info, parser=fake_parser)
+    validation.assert_valid(info_tree)
+
+    parser = FomodParser(info_tree, remove_blank_text=True)
+    parser.set_element_class_lookup(SpecialLookup(FomodLookup()))
+
+    conf_tree = etree.fromstring(conf, parser=parser)
+    validation.assert_valid(conf_tree)
+
+    return conf_tree
+
+
+def parse(source):
+    """
+    Accepts paths to the fomod package and returns a Root object.
+
+    Args:
+        source (str, list(str, str), tuple(str, str)):
+            The path to the fomod package. Accepts a single folder path
+            or a tuple/list of file paths as *(info.xml, ModuleConfig.xml)*.
+
+            The single path must point to a folder with the following rules.
+            Both a subfolder named *fomod* in the `path` and
+            `path` itself being the *fomod* folder are supported.
+            Priority is given to *fomod* subfolder.
+            `path`. Examples:
+
+            * `folder/somefolder/` - *somefolder* contains a *fomod* subfolder;
+            * `folder/somefolder/fomod`.
+
+    Returns:
+        tree.Root: The Root of the fomod installer.
+
+    Raises:
+        AssertionError: If the strings do not contain valid fomod xml.
+    """
+    if not isinstance(source, (tuple, list)):
+        source = io.get_installer_files(source)
+
+    with open(source[0], 'rb') as info, open(source[1], 'rb') as conf:
+        return from_string(info.read(), conf.read())
+
+
+def to_string(fomod):
+    """
+    Serializes a fomod installer ``fomod`` to a tuple of bytestrings,
+    (*info.xml*, *ModuleConfig.xml*).
+
+    Args:
+        fomod (tree.Root): The installer to serialize.
+
+    Returns:
+        tuple(bytes, bytes): A tuple of bytestrings as
+            (*info.xml*, *ModuleConfig.xml*)
+
+    Raises:
+        AssertionError: If the strings do not contain valid fomod xml.
+    """
+    info_tree = etree.ElementTree(fomod.info_root)
+    validation.assert_valid(info_tree)
+    info_str = etree.tostring(info_tree,
+                              xml_declaration=True,
+                              pretty_print=True,
+                              encoding='utf-8')
+
+    conf_tree = etree.ElementTree(fomod)
+    validation.assert_valid(conf_tree)
+    conf_str = etree.tostring(conf_tree,
+                              xml_declaration=True,
+                              pretty_print=True,
+                              encoding='utf-8')
+
+    return info_str, conf_str
+
+
+def write(fomod, path):
+    """
+    Writes a fomod installer ``fomod`` to a package at ``path``. Folders and
+    files are created as necessary.
+
+    Args:
+        fomod (tree.Root): The installer to serialize.
+        path (str, tuple(str, str), list(str, str): The path to write to.
+            Accepts a single folder path
+            or a tuple/list of file paths as *(info.xml, ModuleConfig.xml)*.
+
+            The single path must point to a folder with the following rules.
+            Both a subfolder named *fomod* in the `path` and
+            `path` itself being the *fomod* folder are supported.
+            Priority is given to *fomod* subfolder.
+            `path`. Examples:
+
+            - `folder/somefolder/` - a *fomod* folder will be created
+              in *somefolder* if needed;
+            - `folder/somefolder/fomod`.
+
+    Raises:
+        AssertionError: If the strings do not contain valid fomod xml.
+    """
+    if not isinstance(path, (tuple, list)):
+        path = io.get_installer_files(path, create_missing=True)
+
+    with open(path[0], 'wb') as info, open(path[1], 'wb') as conf:
+        info_str, conf_str = to_string(fomod)
+        info.write(info_str)
+        conf.write(conf_str)
+
+
+class SpecialLookup(etree.CustomElementClassLookup):
     """
     This class is used to lookup and filter outcomments an PI's before we
     get to the tree-based lookup because it REALLY doesn't like to lookup
@@ -37,7 +168,7 @@ class _SpecialLookup(etree.CustomElementClassLookup):
         return None
 
 
-class _FomodLookup(etree.PythonElementClassLookup):
+class FomodLookup(etree.PythonElementClassLookup):
     """
     The class used to lookup the correct class for key tags in the FOMOD
     document. A full tree based lookup is necessary due to the two pattern
@@ -73,5 +204,11 @@ class _FomodLookup(etree.PythonElementClassLookup):
         return element_class
 
 
-FOMOD_PARSER = etree.XMLParser(remove_blank_text=True)
-FOMOD_PARSER.set_element_class_lookup(_SpecialLookup(_FomodLookup()))
+class FomodParser(etree.XMLParser):
+    """
+    Currently used exclusively for holding package-global variables
+    for the trees. Fun.
+    """
+    def __init__(self, info_root, *args, **kwargs):
+        self.info_root = info_root
+        super(FomodParser, self).__init__(*args, **kwargs)
