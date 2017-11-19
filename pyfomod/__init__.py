@@ -15,12 +15,11 @@
 # limitations under the License.
 
 """
-This module holds global variables for the whole package.
+The __init__ module with all its misterious imports.
 """
 
-import os
+from .validation import assert_valid, validate
+from .parser import from_string, to_string, parse, write
 
-from lxml import etree
-
-FOMOD_SCHEMA_TREE = etree.parse(
-    os.path.join(os.path.dirname(__file__), 'fomod.xsd')).getroot()
+__all__ = ['assert_valid', 'validate', 'from_string',
+           'to_string', 'parse', 'write']

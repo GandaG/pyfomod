@@ -23,11 +23,11 @@ from abc import ABCMeta, abstractmethod
 
 from lxml import etree
 
-import pyfomod
-
 from .io import get_installer_files
 
-FOMOD_SCHEMA = etree.XMLSchema(pyfomod.FOMOD_SCHEMA_TREE)
+FOMOD_SCHEMA_TREE = etree.parse(
+    os.path.join(os.path.dirname(__file__), 'fomod.xsd')).getroot()
+FOMOD_SCHEMA = etree.XMLSchema(FOMOD_SCHEMA_TREE)
 
 
 def assert_valid(tree, schema=None):

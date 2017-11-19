@@ -1,10 +1,9 @@
 from lxml import etree
 
 import mock
-import pyfomod
 import pytest
 from helpers import ElementTest, assert_elem_eq, make_element, test_parser
-from pyfomod import tree
+from pyfomod import tree, validation
 
 
 def test_copy_element():
@@ -364,7 +363,7 @@ class Test_FomodElement:
         test_func(elem)
         assert elem._comment is elem_c
         assert elem._schema_element is None
-        assert elem._schema is pyfomod.FOMOD_SCHEMA_TREE
+        assert elem._schema is validation.FOMOD_SCHEMA_TREE
 
     def test_valid_attributes(self):
         test_func = tree.FomodElement.valid_attributes

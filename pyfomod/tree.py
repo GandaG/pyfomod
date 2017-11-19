@@ -21,14 +21,12 @@ from copy import deepcopy
 
 from lxml import etree
 
-import pyfomod
-
 from .schema import (copy_schema, get_attribute_type, get_builtin_type,
                      get_builtin_value, get_complex_type, get_doc_text,
                      get_max_occurs, get_min_occurs, get_order_from_elem,
                      get_order_from_group, get_order_from_type,
                      is_builtin_attribute, is_complex_element, localname)
-from .validation import assert_valid
+from .validation import FOMOD_SCHEMA_TREE, assert_valid
 
 _Attribute = namedtuple('_Attribute', "name doc default type use restriction")
 """
@@ -423,7 +421,7 @@ class FomodElement(etree.ElementBase):
         # pylint: disable=attribute-defined-outside-init
 
         # the schema this element belongs to
-        self._schema = pyfomod.FOMOD_SCHEMA_TREE
+        self._schema = FOMOD_SCHEMA_TREE
 
         # the element that holds minOccurs, etc.
         self._schema_element = self._lookup_element()
