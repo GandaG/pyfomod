@@ -19,7 +19,7 @@ The __init__ module with all its misterious imports.
 """
 
 from .validation import assert_valid, validate
-from .parser import from_string, to_string, parse, write
+from .parser import from_string, to_string, parse, write, new
 
 __all__ = ['assert_valid', 'validate', 'from_string',
-           'to_string', 'parse', 'write']
+           'to_string', 'parse', 'write', 'new']

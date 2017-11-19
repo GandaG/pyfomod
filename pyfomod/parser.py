@@ -21,6 +21,42 @@ from lxml import etree
 from pyfomod import io, tree, validation
 
 
+def new(old_schema_link=True):
+    """
+    Creates a brand new fomod installer.
+
+    Args:
+        old_schema_link (bool, optional): Whether to use the old schema
+            location for compatibility with some mod managers.
+
+    Returns:
+        etree.Root: The root of the new fomod tree.
+    """
+    if old_schema_link:
+        namespace = 'http://qconsulting.ca/fo3/ModConfig5.0.xsd'
+    else:
+        namespace = "https://github.com/fomod-lang/fomod/blob/" \
+                    "5.0/ModuleConfig.xsd"
+    attribs = {"{http://www.w3.org/2001/XMLSchema-instance}"
+               "noNamespaceSchemaLocation": namespace}
+
+    fake_parser = etree.XMLParser(remove_blank_text=True)
+    fake_parser.set_element_class_lookup(SpecialLookup(FomodLookup()))
+
+    info_tree = fake_parser.makeelement('fomod')
+    info_tree._setup_new_element()
+    validation.assert_valid(info_tree)
+
+    parser = FomodParser(info_tree, remove_blank_text=True)
+    parser.set_element_class_lookup(SpecialLookup(FomodLookup()))
+
+    conf_tree = parser.makeelement('config', attrib=attribs)
+    conf_tree._setup_new_element()
+    validation.assert_valid(conf_tree)
+
+    return conf_tree
+
+
 def from_string(info, conf):
     """
     Accepts strings (or bytestrings) as the fomod xml trees and returns

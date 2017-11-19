@@ -445,8 +445,6 @@ class FomodElement(etree.ElementBase):
                 this element can have. For more info refer to
                 :py:class:`_Attribute`.
         """
-        self._assert_valid()
-
         if not is_complex_element(self._schema_element):
             return []
 
@@ -580,8 +578,6 @@ class FomodElement(etree.ElementBase):
                 its structure refer to :py:class:`_OrderIndicator`.
                 `None` if this element has no valid children.
         """
-        self._assert_valid()
-
         order_elem = get_order_from_elem(self._schema_element)
         if order_elem is None:
             return None
@@ -886,6 +882,8 @@ class FomodElement(etree.ElementBase):
              <Element child at 0x0000004>,
              <Element child at 0x0000006>]
         """
+        self._assert_valid()
+
         if not self.can_reorder_child(child, move):
             raise ValueError("child cannot be reordered.")
 

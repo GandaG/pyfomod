@@ -7,6 +7,32 @@ from helpers import assert_elem_eq, test_parser
 from pyfomod import parser, tree
 
 
+def test_new():
+    test_func = parser.new
+
+    expected_info = etree.fromstring("<fomod/>")
+    expected_conf = etree.fromstring("<config xmlns:xsi='http://www.w3.org"
+                                     "/2001/XMLSchema-instance' xsi:"
+                                     "noNamespaceSchemaLocation='http://"
+                                     "qconsulting.ca/fo3/ModConfig5.0.xsd'>"
+                                     "<moduleName/></config>")
+
+    root = test_func()
+    assert_elem_eq(root, expected_conf)
+    assert_elem_eq(root.info_root, expected_info)
+
+    expected_conf = etree.fromstring("<config xmlns:xsi='http://www.w3.org"
+                                     "/2001/XMLSchema-instance' xsi:"
+                                     "noNamespaceSchemaLocation='https://"
+                                     "github.com/fomod-lang/fomod/blob/5.0/"
+                                     "ModuleConfig.xsd'>"
+                                     "<moduleName/></config>")
+
+    root = test_func(old_schema_link=False)
+    assert_elem_eq(root, expected_conf)
+    assert_elem_eq(root.info_root, expected_info)
+
+
 def test_from_string():
     test_func = parser.from_string
 
