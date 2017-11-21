@@ -1,19 +1,39 @@
 language: python
 
 python:
-    - "3.3"
-    - "3.4"
-    - "3.5"
-    - "3.5-dev"
-    - "3.6"
-    - "3.6-dev"
-    - "3.7-dev"
-    - "nightly"
+    - 3.3
+    - 3.4
+    - 3.5
+    - 3.5-dev
+    - &latest_py3 3.6
+    - 3.6-dev
+    - 3.7-dev
+    - nightly
 
-matrix:
+jobs:
+    fast_finish: true
     allow_failures:
-        - python: "3.7-dev"
-        - python: "nightly"
+        - python: 3.7-dev
+        - python: nightly
+    include:
+        - stage: Deploy
+          if: tag IS present
+          python: *latest_py3
+          install:
+              - pip install -U pip
+              - pip install -r requirements.dev.txt
+          script: skip
+          deploy:
+              provider: pypi
+              on:
+                  tags: true
+                  all_branches: true
+              user: ganda
+              password:
+                  secure: tHQ7DY8kwUR7JvjkM85TkD/UJnyfTa7YxLR+6AroWPm0snLUyRep79r3IAlPxc+DB+Wn2tplAeitT3VHoiEXc7BDgqoezKz0Xcp5+ll1pA+iYAUFyJmrYAnklZuQndmJ3+IuAwq9Oju3jV2E5y+iYj5SeyWGxMcfRp7Rk+A+m7XSxv7o3actvm6kvdDhDMdmaoUUo45yY6rffjk0FDt8Ie95LcI3gFlOgU7DKwHAPdlEOah46PH4rbZJuLTMCwr2SfRLj19DLkm0Eeoyq8ybtfEV0No4cd6IQM7wgLYu5iIa51Krt4PpC4L9VzPGhYlR15L+G/s79SZEfmmJx5EEgsecsf3Mf42umOpZqfpAde1BU5aPvg6kZl3QfEhLBBOW6o6cO2YFFxQxr+vt6OxmsSFIwQkyFFtY1HD6/E4QKZcLz9gOx7vxsA7dgrdVGXreEYtiiepd82N52E0wB49RDsGTGRLVbOW1i5L7Y4hNFbWaj2x5CYn03oUJIBOozlQCESO7YlOq3WLcMcC1iKgG5LoRS4RdjnZTdBUhvd+bqv3rnOzpLEF/JE3Cn2okYCt3qfyeO3NwHdNIVQZKrqP/+P3x6E/RzJM2IOPQw0R0kAfkq38LU2SUvXb81BHw/BvWDRf1cxrLV2t1RYZzKYng5k5jDFk42oTXkw9+lm5LX4w=
+              distributions: "sdist bdist_wheel"
+              skip_cleanup: true
+              skip_upload_docs: true
 
 install:
     - pip install -U pip
