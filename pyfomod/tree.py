@@ -543,11 +543,24 @@ class FomodElement(etree.ElementBase):
         """
         self._assert_valid()
 
+        possible_attr = self._find_valid_attribute(name)
+
+        if value is None:
+            if possible_attr.use != 'required':
+                try:
+                    del self.attrib[name]
+                    return
+                except KeyError:
+                    raise ValueError("Attribute {} is not present in this "
+                                     "element.".format(name))
+            else:
+                raise ValueError("Attribute {} cannot be removed from this "
+                                 "element.".format(name))
+
         value = str(value)
 
         # it is possible to simplify all of this into the second portion
         # but I believe it's in the user's interest to keep granularity
-        possible_attr = self._find_valid_attribute(name)
         if possible_attr.restriction is not None:
             if 'enumeration' in possible_attr.restriction.type:
                 enum_list = possible_attr.restriction.enum_list

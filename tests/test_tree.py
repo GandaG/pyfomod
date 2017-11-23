@@ -522,6 +522,53 @@ class Test_FomodElement:
             test_func(elem, 'b', 'boop')
         assert elem.get('b') is None
 
+        # removal
+        schema = etree.fromstring("<xs:schema xmlns:xs='http://www"
+                                  ".w3.org/2001/XMLSchema'>"
+                                  "<xs:element name='a'>"
+                                  "<xs:complexType>"
+                                  "<xs:attribute name='b' type='xs:integer' "
+                                  "use='optional'/>"
+                                  "</xs:complexType>"
+                                  "</xs:element>"
+                                  "</xs:schema>")
+        elem = make_element('a')
+        elem._schema_element = schema[0]
+        elem.set('b', '1')
+        test_func(elem, 'b', None)
+        assert elem.get('b') is None
+
+        # removal non existing
+        schema = etree.fromstring("<xs:schema xmlns:xs='http://www"
+                                  ".w3.org/2001/XMLSchema'>"
+                                  "<xs:element name='a'>"
+                                  "<xs:complexType>"
+                                  "<xs:attribute name='b' type='xs:integer' "
+                                  "use='optional'/>"
+                                  "</xs:complexType>"
+                                  "</xs:element>"
+                                  "</xs:schema>")
+        elem = make_element('a')
+        elem._schema_element = schema[0]
+        with pytest.raises(ValueError):
+            test_func(elem, 'b', None)
+
+        # removal required
+        schema = etree.fromstring("<xs:schema xmlns:xs='http://www"
+                                  ".w3.org/2001/XMLSchema'>"
+                                  "<xs:element name='a'>"
+                                  "<xs:complexType>"
+                                  "<xs:attribute name='b' type='xs:integer' "
+                                  "use='required'/>"
+                                  "</xs:complexType>"
+                                  "</xs:element>"
+                                  "</xs:schema>")
+        elem = make_element('a')
+        elem._schema_element = schema[0]
+        elem.set('b', '1')
+        with pytest.raises(ValueError):
+            test_func(elem, 'b', None)
+
     def composite_dependency_valid_children(self):
         file_dep_child = tree.ChildElement('fileDependency', None, 1)
         flag_dep_child = tree.ChildElement('flagDependency', None, 1)
