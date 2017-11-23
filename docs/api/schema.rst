@@ -1,6 +1,6 @@
 #####################
-Module pyfomod.parser
+Module pyfomod.schema
 #####################
 
-.. automodule:: pyfomod.parser
+.. automodule:: pyfomod.schema
     :members:

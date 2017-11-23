@@ -28,7 +28,7 @@ from .schema import (copy_schema, get_attribute_type, get_builtin_type,
                      is_builtin_attribute, is_complex_element, localname)
 from .validation import FOMOD_SCHEMA_TREE, assert_valid
 
-_Attribute = namedtuple('_Attribute', "name doc default type use restriction")
+Attribute = namedtuple('Attribute', "name doc default type use restriction")
 """
 This ``namedtuple`` represents a single possible attribute for a FomodElement.
 
@@ -39,13 +39,13 @@ Attributes:
         none is specified.
     type (str): The type of this attribute's value.
     use (str): Either ``'optional'``, ``'required'`` or ``'prohibited'``.
-    restriction (_AttrRestriction): A namedtuple with the attribute's
-        restrictions. For more info refer to :py:class:`_AttrRestriction`.
+    restriction (AttrRestriction): A namedtuple with the attribute's
+        restrictions. For more info refer to :py:class:`AttrRestriction`.
 """
 
-_ATTR_REST_ATTRIBUTES = "type enum_list decimals length max_exc max_inc " \
+ATTR_REST_ATTRIBUTES = "type enum_list decimals length max_exc max_inc " \
                         "max_len min_exc min_inc min_len pattern total_digits"
-_AttrRestriction = namedtuple('_AttrRestriction', _ATTR_REST_ATTRIBUTES)
+AttrRestriction = namedtuple('AttrRestriction', ATTR_REST_ATTRIBUTES)
 """
 This ``namedtuple`` represents a single attribute's value restrictions.
 For more information about restrictions refer to `W3Schools`_.
@@ -55,7 +55,7 @@ For more information about restrictions refer to `W3Schools`_.
 Attributes:
     type (str): A string containing all restriction types separated by a
         single whitespace. Example: ``'max_length min_length '``
-    enum_list (list(_AttrRestElement)): A list of possible values for this
+    enum_list (list(AttrRestElement)): A list of possible values for this
         attribute.
 
 Warning:
@@ -63,7 +63,7 @@ Warning:
     all other attributes are always set to :py:class:`None`.
 """
 
-_AttrRestElement = namedtuple('_AttrRestElement', 'value doc')
+AttrRestElement = namedtuple('AttrRestElement', 'value doc')
 """
 This ``namedtuple`` represents a single value for a restriction.
 
@@ -72,8 +72,8 @@ Attributes:
     doc (str): The schema documentation for this value.
 """
 
-_ORDER_INDICATOR_ATTRIBUTES = 'type element_list max_occ min_occ'
-_OrderIndicator = namedtuple('_OrderIndicator', _ORDER_INDICATOR_ATTRIBUTES)
+ORDER_INDICATOR_ATTRIBUTES = 'type element_list max_occ min_occ'
+OrderIndicator = namedtuple('OrderIndicator', ORDER_INDICATOR_ATTRIBUTES)
 """
 This ``namedtuple`` represents an order indicator in the element's schema.
 For more information about order indicators refer to `W3Schools`_.
@@ -82,13 +82,13 @@ For more information about order indicators refer to `W3Schools`_.
 
 Attributes:
     type (str): Either ``'sequence'``, ``'choice'`` or ``'all'``.
-    element_list (list): A list of :py:class:`_OrderIndicator` and
-        :py:class:`_ChildElement` that translates an order of valid children.
+    element_list (list): A list of :py:class:`OrderIndicator` and
+        :py:class:`ChildElement` that translates an order of valid children.
     max_occ (int): The maximum number of times this order can occur in a row.
     min_occ (int): The minimum number of times this order can occur in a row.
 """
 
-_ChildElement = namedtuple('_ChildElement', 'tag max_occ min_occ')
+ChildElement = namedtuple('ChildElement', 'tag max_occ min_occ')
 """
 This ``namedtuple`` represents a valid child of an element.
 
@@ -129,9 +129,6 @@ class FomodElement(etree.ElementBase):
         _schema (lxml.etree._Element): The schema this element belongs to.
         _schema_element (lxml.etree._Element): The element in the schema this
             element corresponds to.
-        _schema_type (lxml.etree._Element): The type that corresponds to
-            `_schema_element`. Usually this will be a *complexType* but can be
-            the same as `_schema_element` if it's a simple element.
     """
 
     @property
@@ -222,20 +219,20 @@ class FomodElement(etree.ElementBase):
         """
         Parses the *ord_elem* order indicator.
         Needs to be separate from the main method to be recurrent.
-        Returns an _OrderIndicator named tuple for the *ord_elem*.
+        Returns an OrderIndicator named tuple for the *ord_elem*.
         """
         child_list = []
 
         for child in ord_elem:
             child_tuple = None
             if localname(child) == 'element':
-                child_tuple = _ChildElement(child.get('name'),
-                                            get_max_occurs(child),
-                                            get_min_occurs(child))
+                child_tuple = ChildElement(child.get('name'),
+                                           get_max_occurs(child),
+                                           get_min_occurs(child))
             elif localname(child) == 'any':
-                child_tuple = _ChildElement(None,
-                                            get_max_occurs(child),
-                                            get_min_occurs(child))
+                child_tuple = ChildElement(None,
+                                           get_max_occurs(child),
+                                           get_min_occurs(child))
             elif localname(child) == 'group':
                 child_order = get_order_from_group(child)
                 child_tuple = cls._valid_children_parse_order(child_order)
@@ -243,14 +240,14 @@ class FomodElement(etree.ElementBase):
                 child_tuple = cls._valid_children_parse_order(child)
             child_list.append(child_tuple)
 
-        return _OrderIndicator(localname(ord_elem), child_list,
-                               get_max_occurs(ord_elem),
-                               get_min_occurs(ord_elem))
+        return OrderIndicator(localname(ord_elem), child_list,
+                              get_max_occurs(ord_elem),
+                              get_min_occurs(ord_elem))
 
     def _find_valid_attribute(self, name):
         """
         Checks if possible attribute name is possible within the schema.
-        Returns the _Attribute namedtuple for the possible attribute.
+        Returns the Attribute namedtuple for the possible attribute.
         If there is no possible attribute, raises ValueError.
         """
         valid_attrs = self.valid_attributes()
@@ -280,7 +277,7 @@ class FomodElement(etree.ElementBase):
         except IndexError:
             return []
 
-        if isinstance(selected_path, _OrderIndicator):
+        if isinstance(selected_path, OrderIndicator):
             if selected_path.type == 'choice':
                 req_child.extend(self._required_children_choice(selected_path))
             else:
@@ -302,7 +299,7 @@ class FomodElement(etree.ElementBase):
         req_child = []
 
         for elem in sequence.element_list:
-            if isinstance(elem, _OrderIndicator):
+            if isinstance(elem, OrderIndicator):
                 if elem.type == 'choice':
                     req_child.extend(self._required_children_choice(elem))
                 else:
@@ -440,10 +437,10 @@ class FomodElement(etree.ElementBase):
         :py:class:`namedtuple <collections.namedtuple>`.
 
         Returns:
-            list(_Attribute):
+            list(Attribute):
                 A list of all possible attributes
                 this element can have. For more info refer to
-                :py:class:`_Attribute`.
+                :py:class:`Attribute`.
         """
         if not is_complex_element(self._schema_element):
             return []
@@ -485,20 +482,20 @@ class FomodElement(etree.ElementBase):
                     doc_child = get_doc_text(child)
                     value = child.get('value')
 
-                    rest_tuple = _AttrRestElement(value, doc_child)
+                    rest_tuple = AttrRestElement(value, doc_child)
 
                     if localname(child) == 'enumeration':
                         if 'enumeration' not in rest_type:
                             rest_type += 'enumeration '
                         enum_list.append(rest_tuple)
 
-                restriction = _AttrRestriction(rest_type, enum_list, None,
-                                               None, None, None,
-                                               None, None, None,
-                                               None, None, None)
+                restriction = AttrRestriction(rest_type, enum_list, None,
+                                              None, None, None,
+                                              None, None, None,
+                                              None, None, None)
 
-            result_list.append(_Attribute(name, doc, default, attr_type,
-                                          use, restriction))
+            result_list.append(Attribute(name, doc, default, attr_type,
+                                         use, restriction))
 
         return result_list
 
@@ -508,7 +505,7 @@ class FomodElement(etree.ElementBase):
         by this element.
 
         Returns:
-            list(_Attribute): The list of required attributes.
+            list(Attribute): The list of required attributes.
         """
         valid_attrib = self.valid_attributes()
         return [attr for attr in valid_attrib if attr.use == 'required']
@@ -572,10 +569,10 @@ class FomodElement(etree.ElementBase):
         Gets all the possible, valid children for this element.
 
         Returns:
-            _OrderIndicator or None:
+            OrderIndicator or None:
                 This :py:class:`namedtuple <collections.namedtuple>` contains
                 the valid children for this element. For more information on
-                its structure refer to :py:class:`_OrderIndicator`.
+                its structure refer to :py:class:`OrderIndicator`.
                 `None` if this element has no valid children.
         """
         order_elem = get_order_from_elem(self._schema_element)

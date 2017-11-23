@@ -107,7 +107,7 @@ def validate(tree, schema=None):
 ERROR_DICT = {}
 
 
-_FomodError = collections.namedtuple('_FomodError', 'line title msg tag')
+FomodError = collections.namedtuple('FomodError', 'line title msg tag')
 """
 This ``namedtuple`` represents an error.
 
@@ -569,8 +569,8 @@ def check_for_errors(tree, path=''):
             Used for checking errors that involve physical files.
 
     Returns:
-        list(_FomodError):
-            A list of :class:`_FomodError` tuples,
+        list(FomodError):
+            A list of :class:`FomodError` tuples,
             that represent each error/mistake caught in ``tree``.
 
     Raises:
@@ -612,10 +612,10 @@ def check_for_errors(tree, path=''):
                     continue
 
                 if error.check(tree, element, path):
-                    error_tuple = _FomodError(element.sourceline,
-                                              error.title(),
-                                              error.error_string(),
-                                              element.tag)
+                    error_tuple = FomodError(element.sourceline,
+                                             error.title(),
+                                             error.error_string(),
+                                             element.tag)
                     checked_errors.append(error_tuple)
 
     return checked_errors

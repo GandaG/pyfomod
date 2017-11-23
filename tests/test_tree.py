@@ -115,23 +115,23 @@ class Test_FomodElement:
                                   "</all>"
                                   "</group>"
                                   "</root>")
-        all_ord = tree._OrderIndicator('all',
-                                       [tree._ChildElement('c', 1, 1)],
-                                       1, 1)
-        choice_ord = tree._OrderIndicator('choice', [all_ord], 1, 0)
-        expected = tree._OrderIndicator('sequence',
-                                        [tree._ChildElement('a', 1, 1),
-                                         choice_ord,
-                                         tree._ChildElement(None, 10, 2)],
-                                        3, 1)
+        all_ord = tree.OrderIndicator('all',
+                                      [tree.ChildElement('c', 1, 1)],
+                                      1, 1)
+        choice_ord = tree.OrderIndicator('choice', [all_ord], 1, 0)
+        expected = tree.OrderIndicator('sequence',
+                                       [tree.ChildElement('a', 1, 1),
+                                        choice_ord,
+                                        tree.ChildElement(None, 10, 2)],
+                                       3, 1)
         assert test_func(schema[0]) == expected
 
     def test_find_valid_attribute(self):
         test_func = tree.FomodElement._find_valid_attribute
 
         elem = ElementTest()
-        attr = tree._Attribute('MachineVersion', None, None,
-                               'string', 'optional', None)
+        attr = tree.Attribute('MachineVersion', None, None,
+                              'string', 'optional', None)
         elem.valid_attributes = lambda: [attr]
         assert test_func(elem, 'MachineVersion') == attr
 
@@ -143,22 +143,22 @@ class Test_FomodElement:
         test_func = tree.FomodElement._required_children_choice
 
         elem = ElementTest()
-        test_choice = tree._OrderIndicator('choice', [], 2, 2)
+        test_choice = tree.OrderIndicator('choice', [], 2, 2)
         assert test_func(elem, test_choice) == []
 
-        test_child = tree._ChildElement('child', 2, 2)
-        test_choice = tree._OrderIndicator('choice', [test_child], 2, 2)
+        test_child = tree.ChildElement('child', 2, 2)
+        test_choice = tree.OrderIndicator('choice', [test_child], 2, 2)
         assert test_func(elem, test_choice) == [('child', 4)]
 
-        test_choice2 = mock.Mock(spec=tree._OrderIndicator)
+        test_choice2 = mock.Mock(spec=tree.OrderIndicator)
         test_choice2.type = 'choice'
-        test_choice = tree._OrderIndicator('choice', [test_choice2], 2, 2)
+        test_choice = tree.OrderIndicator('choice', [test_choice2], 2, 2)
         elem._required_children_choice = lambda _: [('child', 2)]
         assert test_func(elem, test_choice) == [('child', 4)]
 
-        test_sequence = mock.Mock(spec=tree._OrderIndicator)
+        test_sequence = mock.Mock(spec=tree.OrderIndicator)
         test_sequence.type = 'sequence'
-        test_choice = tree._OrderIndicator('choice', [test_sequence], 2, 2)
+        test_choice = tree.OrderIndicator('choice', [test_sequence], 2, 2)
         elem._required_children_sequence = lambda _: [('child', 2)]
         assert test_func(elem, test_choice) == [('child', 4)]
 
@@ -166,25 +166,25 @@ class Test_FomodElement:
         test_func = tree.FomodElement._required_children_sequence
 
         elem = ElementTest()
-        test_sequence = tree._OrderIndicator('sequence', [], 2, 2)
+        test_sequence = tree.OrderIndicator('sequence', [], 2, 2)
         assert test_func(elem, test_sequence) == []
 
-        test_child = mock.Mock(spec=tree._ChildElement)
+        test_child = mock.Mock(spec=tree.ChildElement)
         test_child.tag = 'child'
         test_child.min_occ = 5
-        test_sequence = tree._OrderIndicator('sequence', [test_child], 2, 2)
+        test_sequence = tree.OrderIndicator('sequence', [test_child], 2, 2)
         assert test_func(elem, test_sequence) == [('child', 10)]
 
-        test_choice = mock.Mock(spec=tree._OrderIndicator)
+        test_choice = mock.Mock(spec=tree.OrderIndicator)
         test_choice.type = 'choice'
-        test_sequence = tree._OrderIndicator('sequence', [test_choice], 2, 2)
+        test_sequence = tree.OrderIndicator('sequence', [test_choice], 2, 2)
         elem._required_children_choice = lambda _: [('child', 2)]
         assert test_func(elem, test_sequence) == [('child', 4)]
 
-        test_sequence = mock.Mock(spec=tree._OrderIndicator)
+        test_sequence = mock.Mock(spec=tree.OrderIndicator)
         test_sequence.type = 'sequence'
-        test_sequence = tree._OrderIndicator('sequence', [test_sequence],
-                                             2, 2)
+        test_sequence = tree.OrderIndicator('sequence', [test_sequence],
+                                            2, 2)
         elem._required_children_sequence = lambda _: [('child', 2)]
         assert test_func(elem, test_sequence) == [('child', 4)]
 
@@ -257,28 +257,28 @@ class Test_FomodElement:
         mock_subelem.side_effect = lambda x, y: mock.Mock() \
             if x.append(etree.Element(y)) is None else mock.Mock()
 
-        attr_rest = tree._AttrRestriction('enumeration',
-                                          [tree._AttrRestElement('enum',
-                                                                 None)],
-                                          *[None] * 10)
-        req_attr = [tree._Attribute('attr_default',
-                                    None,
-                                    'default',
-                                    None,
-                                    'required',
-                                    None),
-                    tree._Attribute('attr_rest',
-                                    None,
-                                    None,
-                                    None,
-                                    'required',
-                                    attr_rest),
-                    tree._Attribute('attr_none',
-                                    None,
-                                    None,
-                                    None,
-                                    'required',
-                                    None)]
+        attr_rest = tree.AttrRestriction('enumeration',
+                                         [tree.AttrRestElement('enum',
+                                                               None)],
+                                         *[None] * 10)
+        req_attr = [tree.Attribute('attr_default',
+                                   None,
+                                   'default',
+                                   None,
+                                   'required',
+                                   None),
+                    tree.Attribute('attr_rest',
+                                   None,
+                                   None,
+                                   None,
+                                   'required',
+                                   attr_rest),
+                    tree.Attribute('attr_none',
+                                   None,
+                                   None,
+                                   None,
+                                   'required',
+                                   None)]
         elem.required_attributes = lambda: req_attr
         elem.required_children = lambda: [('child1', 1),
                                           ('child2', 7),
@@ -382,8 +382,8 @@ class Test_FomodElement:
                                   "<attribute name='attr' type='xs:string'/>"
                                   "</complexType>"
                                   "</element>")
-        expected = tree._Attribute("attr", None, None,
-                                   "string", "optional", None)
+        expected = tree.Attribute("attr", None, None,
+                                  "string", "optional", None)
         elem._schema_element = schema
         assert test_func(elem) == [expected]
 
@@ -416,33 +416,33 @@ class Test_FomodElement:
                                   "</attribute>"
                                   "</complexType>"
                                   "</element>")
-        rest_list = [tree._AttrRestElement('aa',
-                                           "Enumeration documentation."),
-                     tree._AttrRestElement('bb', None)]
-        attr_rest = tree._AttrRestriction('enumeration ', rest_list,
+        rest_list = [tree.AttrRestElement('aa',
+                                          "Enumeration documentation."),
+                     tree.AttrRestElement('bb', None)]
+        attr_rest = tree.AttrRestriction('enumeration ', rest_list,
+                                         None, None, None, None, None,
+                                         None, None, None, None, None)
+        child_rest = tree.AttrRestriction('', [],
                                           None, None, None, None, None,
                                           None, None, None, None, None)
-        child_rest = tree._AttrRestriction('', [],
-                                           None, None, None, None, None,
-                                           None, None, None, None, None)
-        expected = [tree._Attribute('attr', "Attribute documentation.",
-                                    None, 'string', 'optional', attr_rest),
-                    tree._Attribute('child', None, None, 'other_attr',
-                                    'optional', child_rest)]
+        expected = [tree.Attribute('attr', "Attribute documentation.",
+                                   None, 'string', 'optional', attr_rest),
+                    tree.Attribute('child', None, None, 'other_attr',
+                                   'optional', child_rest)]
         elem._schema_element = schema
         assert test_func(elem) == expected
 
     def test_required_attributes(self):
         test_func = tree.FomodElement.required_attributes
 
-        attr1 = tree._Attribute("attr1", None, None,
-                                "string", "optional", None)
-        attr2 = tree._Attribute("attr2", None, None,
-                                "string", "required", None)
-        attr3 = tree._Attribute("attr3", None, None,
-                                "string", "optional", None)
-        attr4 = tree._Attribute("attr4", None, None,
-                                "string", "required", None)
+        attr1 = tree.Attribute("attr1", None, None,
+                               "string", "optional", None)
+        attr2 = tree.Attribute("attr2", None, None,
+                               "string", "required", None)
+        attr3 = tree.Attribute("attr3", None, None,
+                               "string", "optional", None)
+        attr4 = tree.Attribute("attr4", None, None,
+                               "string", "required", None)
 
         elem = ElementTest()
         elem.valid_attributes = lambda: [attr1, attr2, attr3, attr4]
@@ -451,10 +451,10 @@ class Test_FomodElement:
     def test_get_attribute(self):
         test_func = tree.FomodElement.get_attribute
 
-        attr1 = tree._Attribute("attr1", None, None,
-                                "string", "optional", None)
-        attr2 = tree._Attribute("attr2", None, "default",
-                                "string", "required", None)
+        attr1 = tree.Attribute("attr1", None, None,
+                               "string", "optional", None)
+        attr2 = tree.Attribute("attr2", None, "default",
+                               "string", "required", None)
 
         elem = ElementTest()
         elem._assert_valid = lambda: None
@@ -523,17 +523,17 @@ class Test_FomodElement:
         assert elem.get('b') is None
 
     def composite_dependency_valid_children(self):
-        file_dep_child = tree._ChildElement('fileDependency', None, 1)
-        flag_dep_child = tree._ChildElement('flagDependency', None, 1)
-        game_dep_child = tree._ChildElement('gameDependency', 1, 0)
-        fomm_dep_child = tree._ChildElement('fommDependency', 1, 0)
-        dep_child = tree._ChildElement('dependencies', 1, 1)
-        choice_ord = tree._OrderIndicator('choice',
-                                          [file_dep_child, flag_dep_child,
-                                           game_dep_child, fomm_dep_child,
-                                           dep_child],
-                                          None, 1)
-        return tree._OrderIndicator('sequence', [choice_ord], 1, 1)
+        file_dep_child = tree.ChildElement('fileDependency', None, 1)
+        flag_dep_child = tree.ChildElement('flagDependency', None, 1)
+        game_dep_child = tree.ChildElement('gameDependency', 1, 0)
+        fomm_dep_child = tree.ChildElement('fommDependency', 1, 0)
+        dep_child = tree.ChildElement('dependencies', 1, 1)
+        choice_ord = tree.OrderIndicator('choice',
+                                         [file_dep_child, flag_dep_child,
+                                          game_dep_child, fomm_dep_child,
+                                          dep_child],
+                                         None, 1)
+        return tree.OrderIndicator('sequence', [choice_ord], 1, 1)
 
     def test_valid_children(self):
         test_func = tree.FomodElement.valid_children
@@ -562,14 +562,14 @@ class Test_FomodElement:
         elem.valid_children = lambda: None
         assert test_func(elem) == []
 
-        test_choice = mock.Mock(spec=tree._OrderIndicator)
+        test_choice = mock.Mock(spec=tree.OrderIndicator)
         test_choice.type = 'choice'
         elem.valid_children = lambda: test_choice
         elem._required_children_choice = lambda x: [('child', 2)] \
             if x is test_choice else 'failure'
         assert test_func(elem) == [('child', 2)]
 
-        test_sequence = mock.Mock(spec=tree._OrderIndicator)
+        test_sequence = mock.Mock(spec=tree.OrderIndicator)
         test_sequence.type = 'sequence'
         elem.valid_children = lambda: test_sequence
         elem._required_children_sequence = lambda x: [('child', 2)] \

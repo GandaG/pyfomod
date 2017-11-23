@@ -30,7 +30,7 @@ def new(old_schema_link=True):
             location for compatibility with some mod managers.
 
     Returns:
-        etree.Root: The root of the new fomod tree.
+        tree.Root: The root of the new fomod tree.
     """
     if old_schema_link:
         namespace = 'http://qconsulting.ca/fo3/ModConfig5.0.xsd'
