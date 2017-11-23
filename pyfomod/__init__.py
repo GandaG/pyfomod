@@ -18,8 +18,20 @@
 The __init__ module with all its misterious imports.
 """
 
-from .validation import assert_valid, validate
-from .parser import from_string, to_string, parse, write, new
+from .parser import from_string, new, parse, to_string, write
+from .validation import (EmptyInstError, EmptySourceError, ErrorChecker,
+                         FlagLabelMismatchError, FlagValueMismatchError,
+                         MissingFileError, MissingFolderError,
+                         MissingImageError, NoAuthorError, NoNameError,
+                         NoVersionError, NoWebsiteError, UnusedFilesError,
+                         assert_valid, check_for_errors, validate)
 
 __all__ = ['assert_valid', 'validate', 'from_string',
-           'to_string', 'parse', 'write', 'new']
+           'to_string', 'parse', 'write', 'new',
+           'ErrorChecker', 'check_for_errors',
+           'NoNameError', 'NoAuthorError', 'NoVersionError',
+           'NoWebsiteError', 'EmptyInstError',
+           'EmptySourceError', 'UnusedFilesError',
+           'MissingFolderError', 'MissingFileError',
+           'MissingImageError', 'FlagLabelMismatchError',
+           'FlagValueMismatchError']
