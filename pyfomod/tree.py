@@ -577,6 +577,18 @@ class FomodElement(etree.ElementBase):
             raise ValueError("value is not of an acceptable type.")
         self.set(name, value)
 
+    def children(self):
+        """
+        Returns a list of this element's children.
+
+        Users should prefer this instead of lxml's ``list(element)``
+        since this method ignores the associated comments.
+
+        Returns:
+            list(FomodElement): A list of this element's children.
+        """
+        return list(self.iterchildren(tag=etree.Element))
+
     def valid_children(self):
         """
         Gets all the possible, valid children for this element.

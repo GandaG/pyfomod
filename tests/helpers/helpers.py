@@ -6,7 +6,9 @@ class ElementTest(etree.ElementBase):
     Use this class instead of simple etree.Element elements.
     This way you can add attributes to instances as you wish.
     """
-    pass
+    def __init__(self, *args, **kwargs):
+        self.PARSER = TestParser()
+        super(ElementTest, self).__init__(*args, **kwargs)
 
 
 class TestParser(etree.XMLParser):
@@ -14,12 +16,15 @@ class TestParser(etree.XMLParser):
     Use this class instead of etree.XMLParser to add attributes
     as needed for testing.
     """
-    pass
+    def __init__(self, *args, **kwargs):
+        super(TestParser, self).__init__(*args,
+                                         remove_blank_text=True,
+                                         **kwargs)
+        self.set_element_class_lookup(
+            etree.ElementDefaultClassLookup(element=ElementTest))
 
 
-test_parser = TestParser(remove_blank_text=True)
-test_parser.set_element_class_lookup(
-        etree.ElementDefaultClassLookup(element=ElementTest))
+test_parser = TestParser()
 
 
 def make_element(tag, text=None, attrib=None, nsmap=None):

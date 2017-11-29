@@ -569,18 +569,15 @@ class Test_FomodElement:
         with pytest.raises(ValueError):
             test_func(elem, 'b', None)
 
-    def composite_dependency_valid_children(self):
-        file_dep_child = tree.ChildElement('fileDependency', None, 1)
-        flag_dep_child = tree.ChildElement('flagDependency', None, 1)
-        game_dep_child = tree.ChildElement('gameDependency', 1, 0)
-        fomm_dep_child = tree.ChildElement('fommDependency', 1, 0)
-        dep_child = tree.ChildElement('dependencies', 1, 1)
-        choice_ord = tree.OrderIndicator('choice',
-                                         [file_dep_child, flag_dep_child,
-                                          game_dep_child, fomm_dep_child,
-                                          dep_child],
-                                         None, 1)
-        return tree.OrderIndicator('sequence', [choice_ord], 1, 1)
+    def test_children(self):
+        test_func = tree.FomodElement.children
+
+        root = ElementTest()
+        elem1 = etree.SubElement(root, 'a')
+        elem2 = etree.SubElement(root, 'b')
+        elem3 = etree.SubElement(root, 'c')
+
+        assert test_func(root) == [elem1, elem2, elem3]
 
     def test_valid_children(self):
         test_func = tree.FomodElement.valid_children
