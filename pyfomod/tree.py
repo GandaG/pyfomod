@@ -350,13 +350,12 @@ class FomodElement(etree.ElementBase):
         """
         for attr in self.required_attributes():
             if attr.default is not None:
-                self.set_attribute(attr.name, attr.default)
+                self.set(attr.name, attr.default)
             elif (attr.restriction is not None and
                   'enumeration' in attr.restriction.type):
-                self.set_attribute(attr.name,
-                                   attr.restriction.enum_list[0].value)
+                self.set(attr.name, attr.restriction.enum_list[0].value)
             else:
-                self.set_attribute(attr.name, '')
+                self.set(attr.name, '')
 
         for elem in self.required_children():
             for _ in range(0, elem[1]):
