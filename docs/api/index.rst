@@ -8,3 +8,11 @@ API Reference
     schema
     tree
     validation
+
+
+**************
+Module pyfomod
+**************
+
+.. automodule:: pyfomod
+    :members:

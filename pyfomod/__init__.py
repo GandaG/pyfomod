@@ -15,7 +15,7 @@
 # limitations under the License.
 
 """
-The __init__ module with all its misterious imports.
+The main API module. Should contain everything the user needs.
 """
 
 from .parser import from_string, new, parse, to_string, write
