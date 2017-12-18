@@ -29,7 +29,9 @@ pyfomod
 Quick Examples
 --------------
 
-- Create a new installer::
+- Create a new installer:
+
+  .. code-block:: python
 
     >>> from pyfomod import new, to_string
     >>> new_installer = new()
@@ -45,7 +47,9 @@ Quick Examples
     </config>
 
 
-- Validate other installers::
+- Validate other installers:
+
+  .. code-block:: python
 
     >>> from pyfomod import validate
     >>> validate("path/to/info.xml")
@@ -57,26 +61,26 @@ Quick Examples
 
 - Writing a brand new installer:
 
-.. code-block:: bash
+  .. code-block:: bash
 
-  example
-  └── mod_file.dat
-
-
-.. code-block:: python
-
-  >>> from pyfomod import new, write
-  >>> new_installer = new()
-  >>> write(new_installer, 'path/to/example')
+    example
+    └── mod_file.dat
 
 
-.. code-block:: bash
+  .. code-block:: python
 
-  example
-  ├── fomod
-  │   ├── info.xml
-  │   └── ModuleConfig.xml
-  └── mod_file.dat
+    >>> from pyfomod import new, write
+    >>> new_installer = new()
+    >>> write(new_installer, 'path/to/example')
+
+
+  .. code-block:: bash
+
+    example
+    ├── fomod
+    │   ├── info.xml
+    │   └── ModuleConfig.xml
+    └── mod_file.dat
 
 
 Installation

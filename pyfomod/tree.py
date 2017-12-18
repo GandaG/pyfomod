@@ -286,9 +286,8 @@ class FomodElement(etree.ElementBase):
         elif selected_path.min_occ > 0:
             req_child.append((selected_path.tag, selected_path.min_occ))
 
-        for index in range(0, len(req_child)):
-            req_child[index] = (req_child[index][0],
-                                req_child[index][1] * choice.min_occ)
+        for index, child in enumerate(req_child):
+            req_child[index] = (child[0], child[1] * choice.min_occ)
 
         return req_child
 
@@ -307,9 +306,8 @@ class FomodElement(etree.ElementBase):
             elif elem.min_occ > 0:
                 req_child.append((elem.tag, elem.min_occ))
 
-        for index in range(0, len(req_child)):
-            req_child[index] = (req_child[index][0],
-                                req_child[index][1] * sequence.min_occ)
+        for index, child in enumerate(req_child):
+            req_child[index] = (child[0], child[1] * sequence.min_occ)
 
         return req_child
 
