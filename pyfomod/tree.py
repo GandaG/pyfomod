@@ -965,6 +965,66 @@ class Root(FomodElement):
         """
         return etree.ElementTree(self).parser.info_root
 
+    @property
+    def name(self):
+        """
+        str: Returns the name of the mod.
+        """
+        name_elem = self.find('moduleName')
+        if name_elem is None:
+            return ''
+        return name_elem.text or ''
+
+    @property
+    def author(self):
+        """
+        str: Returns the author of the mod.
+        """
+        author_elem = self.info_root.find('Author')
+        if author_elem is None:
+            return ''
+        return author_elem.text or ''
+
+    @property
+    def version(self):
+        """
+        str: Returns the version of the mod.
+        """
+        version_elem = self.info_root.find('Version')
+        if version_elem is None:
+            return ''
+        return version_elem.text or ''
+
+    @property
+    def description(self):
+        """
+        str: Returns the description of the mod.
+        """
+        description_elem = self.info_root.find('Description')
+        if description_elem is None:
+            return ''
+        return description_elem.text or ''
+
+    @property
+    def website(self):
+        """
+        str: Returns the website of the mod.
+        """
+        website_elem = self.info_root.find('Website')
+        if website_elem is None:
+            return ''
+        return website_elem.text or ''
+
+    @property
+    def image(self):
+        """
+        str: Returns the cover image of the mod.
+        """
+        image_elem = self.find('moduleImage')
+        if image_elem is None:
+            return ''
+        return image_elem.get('path', '')
+
 
 class InstallPattern(FomodElement):
     """
