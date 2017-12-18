@@ -18,6 +18,7 @@
 The main API module. Should contain everything the user needs.
 """
 
+from .installer import Installer, MissingDependency
 from .parser import from_string, new, parse, to_string, write
 from .validation import (EmptyInstError, EmptySourceError, ErrorChecker,
                          FlagLabelMismatchError, FlagValueMismatchError,
@@ -34,4 +35,4 @@ __all__ = ['assert_valid', 'validate', 'from_string',
            'EmptySourceError', 'UnusedFilesError',
            'MissingFolderError', 'MissingFileError',
            'MissingImageError', 'FlagLabelMismatchError',
-           'FlagValueMismatchError']
+           'FlagValueMismatchError', 'Installer', 'MissingDependency']

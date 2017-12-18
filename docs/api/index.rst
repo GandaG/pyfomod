@@ -8,6 +8,7 @@ API Reference
     schema
     tree
     validation
+    installer
 
 
 **************
