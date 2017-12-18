@@ -122,7 +122,8 @@ disable=range-builtin-not-iterating,
         too-many-public-methods,
         len-as-condition,
         missing-format-argument-key,
-        too-many-nested-blocks
+        too-many-nested-blocks,
+        too-many-ancestors
 
 
 [REPORTS]
