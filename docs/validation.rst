@@ -53,22 +53,18 @@ that are considered valid by the schema::
     <fomod/>
 
     >>> pyfomod.check_for_errors('path/to/info.xml')
-    [FomodError(line=1,
+    [FomodError(lines=[1],
                 title='Offline Installer',
-                msg='The installer has no website specified.',
-                tag='fomod'),
-     FomodError(line=1,
+                msg='The installer has no website specified.'),
+     FomodError(lines=[1],
                 title='Versionless Installer',
-                msg='The installer has no version specified.',
-                tag='fomod'),
-     FomodError(line=1,
+                msg='The installer has no version specified.'),
+     FomodError(lines=[1],
                 title='Installer With No Name',
-                msg='The installer has no name specified.',
-                tag='fomod'),
-     FomodError(line=1,
+                msg='The installer has no name specified.'),
+     FomodError(lines=[1],
                 title='Unsigned Installer',
-                msg='The installer has no author specified.',
-                tag='fomod')]
+                msg='The installer has no author specified.')]
 
 As you can see, the errors are reported cleanly so you can organize them in any
 way you want. Let's fix those errors::

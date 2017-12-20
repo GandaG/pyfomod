@@ -107,15 +107,14 @@ def validate(tree, schema=None):
 ERROR_DICT = {}
 
 
-FomodError = collections.namedtuple('FomodError', 'line title msg tag')
+FomodError = collections.namedtuple('FomodError', 'lines title msg')
 """
 This ``namedtuple`` represents an error.
 
 Attributes:
-    line (int): The line at which the error occured.
+    lines (int): The lines at which the error occured.
     title (str): The error's title.
     msg (str): A message explaining the error.
-    tag (str): The tag of the element at which the error occured.
 """
 
 
@@ -591,9 +590,6 @@ def check_for_errors(tree, path=''):
             path = tree
         tree = etree.parse(tree)
 
-    # the list to hold the final tuples
-    checked_errors = []
-
     # build the tag -> errors dictionary
     # easier to select errors to check
     error_tag_dict = {}
@@ -605,6 +601,7 @@ def check_for_errors(tree, path=''):
                 error_tag_dict[tag] = [error()]
 
     # start iterating and checking
+    error_line_dict = {}
     for element in tree.iter():
         if element.tag in error_tag_dict:
             for error in error_tag_dict[element.tag]:
@@ -612,10 +609,9 @@ def check_for_errors(tree, path=''):
                     continue
 
                 if error.check(tree, element, path):
-                    error_tuple = FomodError(element.sourceline,
-                                             error.title(),
-                                             error.error_string(),
-                                             element.tag)
-                    checked_errors.append(error_tuple)
+                    error_line_dict.setdefault(error,
+                                               []).append(element.sourceline)
 
-    return checked_errors
+    return [FomodError(error_line_dict[error],
+                       error.title(),
+                       error.error_string()) for error in error_line_dict]

@@ -81,8 +81,8 @@ class Test_Check_Errors:
                                 "<Version>0</Version>"
                                 "<Website>www.example.com</Website>"
                                 "</fomod>")
-        expected = [(1, "Installer With No Name",
-                     "The installer has no name specified.", 'fomod')]
+        expected = [([1], "Installer With No Name",
+                     "The installer has no name specified.")]
         assert validation.check_for_errors(tree) == expected
 
     def test_no_author(self):
@@ -91,8 +91,8 @@ class Test_Check_Errors:
                                 "<Version>0</Version>"
                                 "<Website>www.example.com</Website>"
                                 "</fomod>")
-        expected = [(1, "Unsigned Installer",
-                     "The installer has no author specified.", 'fomod')]
+        expected = [([1], "Unsigned Installer",
+                     "The installer has no author specified.")]
         assert validation.check_for_errors(tree) == expected
 
     def test_no_version(self):
@@ -101,8 +101,8 @@ class Test_Check_Errors:
                                 "<Author>Example Author</Author>"
                                 "<Website>www.example.com</Website>"
                                 "</fomod>")
-        expected = [(1, "Versionless Installer",
-                     "The installer has no version specified.", 'fomod')]
+        expected = [([1], "Versionless Installer",
+                     "The installer has no version specified.")]
         assert validation.check_for_errors(tree) == expected
 
     def test_no_website(self):
@@ -111,8 +111,8 @@ class Test_Check_Errors:
                                 "<Author>Example Author</Author>"
                                 "<Version>0</Version>"
                                 "</fomod>")
-        expected = [(1, "Offline Installer",
-                     "The installer has no website specified.", 'fomod')]
+        expected = [([1], "Offline Installer",
+                     "The installer has no website specified.")]
         assert validation.check_for_errors(tree) == expected
 
     def test_empty_inst(self):
@@ -121,8 +121,8 @@ class Test_Check_Errors:
                                 "Empty Installer Error"
                                 "</moduleName>"
                                 "</config>")
-        expected = [(1, "Empty Installer",
-                     "The installer is empty.", 'config')]
+        expected = [([1], "Empty Installer",
+                     "The installer is empty.")]
         assert validation.check_for_errors(tree) == expected
 
     def test_empty_source(self):
@@ -132,9 +132,8 @@ class Test_Check_Errors:
                                 "<file source=''/>"
                                 "</requiredInstallFiles>"
                                 "</config>")
-        expected = [(1, "Empty Source Fields",
-                     "The source folder(s) under the tag file were empty.",
-                     'file')]
+        expected = [([1], "Empty Source Fields",
+                     "The source folder(s) under the tag file were empty.")]
         assert validation.check_for_errors(tree) == expected
 
     def test_unused_files(self, tmpdir):
@@ -188,10 +187,9 @@ class Test_Check_Errors:
         gg = "\n    " + os.path.relpath(gg, tmpdir)
         hh = "\n    " + os.path.relpath(hh, tmpdir)
         unuseddatafile = "\n    " + os.path.relpath(unuseddatafile, tmpdir)
-        expected = [(1, "Unused Files",
+        expected = [([1], "Unused Files",
                      "The following file(s) are included within the package"
-                     " but are not used:" + unuseddatafile + hh + gg,
-                     'config')]
+                     " but are not used:" + unuseddatafile + hh + gg)]
         assert validation.check_for_errors(tree, path=tmpdir) == expected
 
     def test_missing_folder(self, tmpdir):
@@ -201,10 +199,9 @@ class Test_Check_Errors:
                                 "<folder source='missing'/>"
                                 "</requiredInstallFiles>"
                                 "</config>")
-        expected = [(1, "Missing Source Folders",
+        expected = [([1], "Missing Source Folders",
                      "The source folder(s) under the tag folder "
-                     "weren't found inside the package.",
-                     'folder')]
+                     "weren't found inside the package.")]
         assert validation.check_for_errors(tree, path=str(tmpdir)) == expected
 
     def test_missing_file(self, tmpdir):
@@ -214,10 +211,9 @@ class Test_Check_Errors:
                                 "<file source='missing.txt'/>"
                                 "</requiredInstallFiles>"
                                 "</config>")
-        expected = [(1, "Missing Source Files",
+        expected = [([1], "Missing Source Files",
                      "The source file(s) under the tag file "
-                     "weren't found inside the package.",
-                     'file')]
+                     "weren't found inside the package.")]
         assert validation.check_for_errors(tree, path=str(tmpdir)) == expected
 
     def test_missing_image(self, tmpdir):
@@ -226,10 +222,9 @@ class Test_Check_Errors:
                                 "<moduleImage path='missing.png'/>"
                                 "<requiredInstallFiles/>"
                                 "</config>")
-        expected = [(1, "Missing Images",
+        expected = [([1], "Missing Images",
                      "The image(s) under the tag moduleImage "
-                     "weren't found inside the package.",
-                     'moduleImage')]
+                     "weren't found inside the package.")]
         assert validation.check_for_errors(tree, path=str(tmpdir)) == expected
 
     def test_flag_label_mismatch(self):
@@ -259,10 +254,9 @@ class Test_Check_Errors:
                                 "</installStep>"
                                 "</installSteps>"
                                 "</config>")
-        expected = [(1, "Mismatched Flag Labels",
+        expected = [([1], "Mismatched Flag Labels",
                      "The flag label that flagDependency is dependent on "
-                     "is never created during installation.",
-                     'flagDependency')]
+                     "is never created during installation.")]
         assert validation.check_for_errors(tree) == expected
 
     def test_flag_value_mismatch(self):
@@ -295,8 +289,7 @@ class Test_Check_Errors:
                                 "</installStep>"
                                 "</installSteps>"
                                 "</config>")
-        expected = [(1, "Mismatched Flag Values",
+        expected = [([1], "Mismatched Flag Values",
                      "The flag value that flagDependency is dependent on "
-                     "is never set.",
-                     'flagDependency')]
+                     "is never set.")]
         assert validation.check_for_errors(tree) == expected
