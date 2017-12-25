@@ -589,17 +589,17 @@
 
     <xs:complexType name="pluginTypeDescriptor">
         <xs:choice>
-            <xs:element name="dependencyType" type="dependencyPluginType">
-                <xs:annotation>
-                    <xs:documentation>
-                        Used when the plugin type is dependent upon other items.
-                    </xs:documentation>
-                </xs:annotation>
-            </xs:element>
             <xs:element name="type" type="pluginType">
                 <xs:annotation>
                     <xs:documentation>
                         Defines the type of the plugin.
+                    </xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element name="dependencyType" type="dependencyPluginType">
+                <xs:annotation>
+                    <xs:documentation>
+                        Used when the plugin type is dependent upon other items.
                     </xs:documentation>
                 </xs:annotation>
             </xs:element>
