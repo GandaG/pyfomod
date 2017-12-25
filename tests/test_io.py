@@ -1,7 +1,8 @@
 import os
 
-import pytest
 from pyfomod import io
+
+import pytest
 
 
 class Test_get_installer_files:

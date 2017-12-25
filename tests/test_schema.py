@@ -1,8 +1,8 @@
 from lxml import etree
+from pyfomod import schema
 
 import mock
 from helpers import ElementTest, assert_elem_eq
-from pyfomod import schema
 
 
 def test_localname():

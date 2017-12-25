@@ -1,9 +1,9 @@
 import os
 
 from lxml import etree
+from pyfomod import validation
 
 import mock
-from pyfomod import validation
 
 
 class Test_Assert_Valid:

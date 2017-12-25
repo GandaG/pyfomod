@@ -1,9 +1,9 @@
 from collections import ChainMap
 
 from lxml import etree
+from pyfomod import installer
 
 import pytest
-from pyfomod import installer
 
 
 def test_assert_dependencies(tmpdir):

@@ -1,10 +1,10 @@
 import os
 
 from lxml import etree
+from pyfomod import parser, tree
 
 import mock
 from helpers import assert_elem_eq, test_parser
-from pyfomod import parser, tree
 
 
 def test_new():

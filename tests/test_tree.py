@@ -1,9 +1,9 @@
 from lxml import etree
+from pyfomod import tree, validation
 
 import mock
 import pytest
 from helpers import ElementTest, assert_elem_eq, make_element, test_parser
-from pyfomod import tree, validation
 
 
 def test_copy_element():

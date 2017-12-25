@@ -17,7 +17,6 @@ This module holds the custom parser.
 """
 
 from lxml import etree
-
 from pyfomod import io, tree, validation
 
 
