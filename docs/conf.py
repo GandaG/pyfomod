@@ -22,9 +22,6 @@
 # sys.path.insert(0, os.path.abspath('.'))
 
 import os
-import setuptools
-
-config = setuptools.config.read_configuration('../setup.cfg')
 
 suppress_warnings = ['image.nonlocal_uri']
 
@@ -69,7 +66,7 @@ author = 'Daniel Nunes'
 # built documents.
 #
 # The short X.Y version.
-version = config['metadata']['version']
+version = '0.3.0'
 # The full version, including alpha/beta/rc tags.
 release = version
 
