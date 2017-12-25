@@ -1,5 +1,13 @@
 ## Changelog
 
+#### 0.3.0
+
+* Added full fomod installer.
+* General fomod metadata is now accessible in the `Root` object via properties.
+* Improved `check_for_errors`'s output.
+* `get_installer_files` now correctly raises `FileNotFoundError` instead of
+  the generic `IOError`.
+
 #### 0.2.0
 
 * Added low-level API that allows for better control over the xml tree than
