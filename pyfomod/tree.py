@@ -688,6 +688,9 @@ class FomodElement(etree.ElementBase):
         Raises:
             TypeError: If child is neither a string nor FomodElement.
             ValueError: If the child cannot be added to this element.
+
+        Returns:
+            FomodElement: The added child.
         """
         self._assert_valid()
 
@@ -716,6 +719,8 @@ class FomodElement(etree.ElementBase):
         self.insert(index, child)
         if child._comment is not None:
             self.insert(index, child._comment)
+
+        return child
 
     def can_remove_child(self, child):
         """
@@ -978,49 +983,56 @@ class Root(FomodElement):
         str: Returns the name of the mod.
         """
         name_elem = self.find('moduleName')
-        if name_elem is None:
-            return ''
         return name_elem.text or ''
+
+    @name.setter
+    def name(self, name):
+        name_elem = self.find('moduleName')
+        name_elem.text = name
 
     @property
     def author(self):
         """
         str: Returns the author of the mod.
         """
-        author_elem = self.info_root.find('Author')
-        if author_elem is None:
-            return ''
-        return author_elem.text or ''
+        return self._info_root_getter('Author')
+
+    @author.setter
+    def author(self, author):
+        self._info_root_setter('Author', author)
 
     @property
     def version(self):
         """
         str: Returns the version of the mod.
         """
-        version_elem = self.info_root.find('Version')
-        if version_elem is None:
-            return ''
-        return version_elem.text or ''
+        return self._info_root_getter('Version')
+
+    @version.setter
+    def version(self, version):
+        self._info_root_setter('Version', version)
 
     @property
     def description(self):
         """
         str: Returns the description of the mod.
         """
-        description_elem = self.info_root.find('Description')
-        if description_elem is None:
-            return ''
-        return description_elem.text or ''
+        return self._info_root_getter('Description')
+
+    @description.setter
+    def description(self, description):
+        self._info_root_setter('Description', description)
 
     @property
     def website(self):
         """
         str: Returns the website of the mod.
         """
-        website_elem = self.info_root.find('Website')
-        if website_elem is None:
-            return ''
-        return website_elem.text or ''
+        return self._info_root_getter('Website')
+
+    @website.setter
+    def website(self, website):
+        self._info_root_setter('Website', website)
 
     @property
     def image(self):
@@ -1030,7 +1042,26 @@ class Root(FomodElement):
         image_elem = self.find('moduleImage')
         if image_elem is None:
             return ''
-        return image_elem.get('path', '')
+        return image_elem.get_attribute('path')
+
+    @image.setter
+    def image(self, path):
+        image_elem = self.find('moduleImage')
+        if image_elem is None:
+            image_elem = self.add_child('moduleImage')
+        image_elem.set_attribute('path', path)
+
+    def _info_root_getter(self, tag):
+        elem = self.info_root.find(tag)
+        if elem is None:
+            return ''
+        return elem.text or ''
+
+    def _info_root_setter(self, tag, value):
+        elem = self.info_root.find(tag)
+        if elem is None:
+            elem = self.info_root.add_child(tag)
+        elem.text = value
 
 
 class InstallPattern(FomodElement):
