@@ -550,6 +550,33 @@ class FlagValueMismatchError(ErrorChecker):
         return label_found
 
 
+class ModFlagDependencyError(ErrorChecker):
+    """
+    Checks whether 'moduleDependencies' has 'flagDependencies'.
+
+    It shouldn't, since no flags will be set there, meaning the mod
+    will never be installed.
+    """
+
+    @staticmethod
+    def tag():
+        return ('moduleDependencies',)
+
+    def title(self):
+        return "Flag Dependency in Module Dependencies"
+
+    def error_string(self):
+        return "moduleDependencies is using flagDependency - at this point " \
+               "no flags have been set which means the mod will never be " \
+               "installed."
+
+    def check(self, root, element, installer_path):
+        super().check(root, element, installer_path)
+        if element.find('.//flagDependency') is not None:
+            return True
+        return False
+
+
 def check_for_errors(tree, path=''):
     """
     Checks for common mistakes in FOMOD installers.
