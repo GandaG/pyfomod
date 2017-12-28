@@ -16,9 +16,20 @@
 This module holds the the key classes necessary for the high-level api.
 """
 
+import re
+from contextlib import suppress
+
 from lxml import etree
 
 from .base import FomodElement
+
+
+class TreeCompatibilityError(Exception):
+    """
+    To be raised whenever there is an incompatibility of the tree
+    with this API.
+    """
+    pass
 
 
 class Root(FomodElement):
@@ -29,6 +40,36 @@ class Root(FomodElement):
     as well as high-level functions and properties to read and modify the
     'ModuleConfig.xml' file.
     """
+    # these expressions are for evaluating when a tree is completely
+    # incompatible with this API
+    hard_incompat = ['//installSteps[not(@order)]',
+                     '//installSteps[@order="Ascending"]',
+                     '//installSteps[@order="Descending"]',
+                     '//optionalFileGroups[not(@order)]',
+                     '//optionalFileGroups[@order="Ascending"]',
+                     '//optionalFileGroups[@order="Descending"]',
+                     '//plugins[not(@order)]',
+                     '//plugins[@order="Ascending"]',
+                     '//plugins[@order="Descending"]',
+                     '//dependencyType']
+
+    # these expressions are for specific values that will be
+    # ignored/interpreted differently by this API
+    soft_incompat = ['//moduleName[@position]',
+                     '//moduleName[@colour]',
+                     '//moduleImage[@showImage]',
+                     '//moduleImage[@showFade]',
+                     '//moduleImage[@height]',
+                     '//fommDependency',
+                     '//fileDependency[@state="Inactive"]',
+                     '//file[@alwaysInstall]',
+                     '//file[@installIfUsable]',
+                     '//file[@priority]',
+                     '//folder[@alwaysInstall]',
+                     '//folder[@installIfUsable]',
+                     '//folder[@priority]',
+                     '//typeDescriptor/type[@type="CouldBeUsable"]']
+
     @property
     def info_root(self):
         """
@@ -123,6 +164,127 @@ class Root(FomodElement):
         if elem is None:
             elem = self.info_root.add_child(tag)
         elem.text = value
+
+    def _xpath_to_message(self, *error_expressions):
+        """
+        To be used with hard_incompat and soft_incompat.
+        Sort of parses them and transforms them into a human-readable
+        message
+        """
+        tag_regex = r'//([\w/]*)'
+        attr_regex = r'//([\w/]*)\[(?:@|not\(@)(\w*)'
+        value_regex = r'//([\w/]*)\[@(\w*)=[\'"](\w*)[\'"]'
+
+        init_msg = 'The following {} incompatibilities have been found:'
+        soft_msg = init_msg.format('soft')
+        hard_msg = init_msg.format('hard')
+
+        soft_msgs = []
+        hard_msgs = []
+
+        for error_exp in error_expressions:
+            # the order of the regexs matter
+            for regex in (value_regex, attr_regex, tag_regex):
+                match = re.match(regex, error_exp)
+                if match is None:
+                    continue
+
+                error_msg = '    The '
+                with suppress(IndexError):
+                    error_msg += 'value {} of '.format(match.group(3))
+                with suppress(IndexError):
+                    error_msg += 'attribute {} in '.format(match.group(2))
+                with suppress(IndexError):
+                    error_msg += 'element {};'.format(match.group(1))
+
+                if error_exp in self.soft_incompat:
+                    soft_msgs.append(error_msg)
+                elif error_exp in self.hard_incompat:
+                    hard_msgs.append(error_msg)
+                else:
+                    raise AssertionError('Couldn\'t find expression.')
+
+        final_msg = ''
+        if soft_msgs:
+            final_msg += '\n'.join((soft_msg, *soft_msgs))
+            final_msg += '\n'
+        if hard_msgs:
+            final_msg += '\n'.join((hard_msg, *hard_msgs))
+        return final_msg
+
+    def is_tree_compatible(self, raise_error=False):
+        """
+        Checks whether this fomod tree is compatible with the usage of this
+        API. Please note that the FomodElement, validation and installer API's
+        are always available and compatible with any fomod tree.
+
+        If **raise_error** is ``True`` then a
+        :class:`~pyfomod.tree.TreeCompatibilityError` is raised with a
+        descriptive error message instead of returning False. In this case
+        soft incompatibilities are also checked.
+
+        Soft incompatibilities are attribute values, attributes or elements
+        that this API can't work with and that are safe to ignore or give a
+        different meaning to. Below is a list of all soft incompatibilties and
+        the action taken by this API:
+
+        * ``position`` attribute in ``moduleName`` element - ignored;
+        * ``colour`` attribute in ``moduleName`` element - ignored;
+        * ``showImage`` attribute in ``moduleImage`` element - ignored;
+        * ``showFade`` attribute in ``moduleImage`` element - ignored;
+        * ``height`` attribute in ``moduleImage`` element - ignored;
+        * ``fommDependency`` element - ignored;
+        * ``Inactive`` value of ``state`` attribute in ``fileDependency``
+          element - same meaning as ``Active``;
+        * ``alwaysInstall`` attribute in ``file`` element - ignored;
+        * ``installIfUsable`` ttribute in ``file`` element - ignored;
+        * ``priority`` attribute in ``file`` element - ignored;
+        * ``alwaysInstall`` attribute in ``folder`` element - ignored;
+        * ``installIfUsable`` ttribute in ``folder`` element - ignored;
+        * ``priority`` attribute in ``folder`` element - ignored;
+        * ``CouldBeUsable`` value in ``type`` attribute in
+          ``typeDescriptor/type`` element - same meaning as ``NotUsable``.
+
+        Hard incompatibilities are attribute values or elements that, unlike
+        soft incompatibilites, are not safe to ignore or change meaning on the
+        fly. Therefore, as long as they're present in the tree this API will
+        not be safe to work with. Please note that there is no actual barrier
+        to API usage, meaning you can use it freely even with hard
+        incompatibilites present - it will raise the appropriate error when it
+        can no longer function.
+
+        * The values ``Ascending`` or ``Descending`` in order attribute in
+          ``installSteps`` element;
+        * No order attribute in ``installSteps`` element;
+        * The values ``Ascending`` or ``Descending`` in order attribute in
+          optionalFilleGroups element;
+        * No order attribute in ``optionalFileGroups`` element;
+        * The values ``Ascending`` or ``Descending`` in order attribute in
+          ``plugins`` element;
+        * No order attribute in ``plugins`` element;
+        * ``dependencyType`` element;
+
+        Returns:
+            bool: True if compatible, False otherwise.
+        """
+        xpath_eval = etree.XPathEvaluator(self)
+        errored_exps = []
+
+        # soft first
+        for exp in self.soft_incompat:
+            if raise_error and xpath_eval(exp):
+                errored_exps.append(exp)
+
+        # hard next
+        for exp in self.hard_incompat:
+            if xpath_eval(exp):
+                if raise_error:
+                    errored_exps.append(exp)
+                else:
+                    return False
+        if raise_error and errored_exps:
+            raise TreeCompatibilityError(self._xpath_to_message(*errored_exps))
+        return True
 
 
 class InstallPattern(FomodElement):
