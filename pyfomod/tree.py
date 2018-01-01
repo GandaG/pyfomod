@@ -21,11 +21,12 @@ from copy import deepcopy
 
 from lxml import etree
 
-from .schema import (copy_schema, get_attribute_type, get_builtin_type,
-                     get_builtin_value, get_complex_type, get_doc_text,
-                     get_max_occurs, get_min_occurs, get_order_from_elem,
-                     get_order_from_group, get_order_from_type,
-                     is_builtin_attribute, is_complex_element, localname)
+from .schema import (copy_schema, get_attribute_type, get_attributegroup_elem,
+                     get_builtin_type, get_builtin_value, get_complex_type,
+                     get_doc_text, get_max_occurs, get_min_occurs,
+                     get_order_from_elem, get_order_from_group,
+                     get_order_from_type, is_builtin_attribute,
+                     is_complex_element, localname)
 from .validation import FOMOD_SCHEMA_TREE, assert_valid
 
 Attribute = namedtuple('Attribute', "name doc default type use restriction")
@@ -99,7 +100,7 @@ Attributes:
 """
 
 
-def copy_element(element, copy_level=0):
+def copy_element(element, copy_level=0, rm_attr=False):
     """
     Provides a copy of ``element`` using the default element from lxml.
     Strictly for usage with validation/simulation scenarios.
@@ -107,15 +108,16 @@ def copy_element(element, copy_level=0):
     ``copy_level`` determines the level to copy to. ``-1`` refers to a
     full deepcopy, ``0`` is a shallow copy.
     """
+    attrib = {} if rm_attr else element.attrib
     copy = etree.Element(element.tag,
-                         attrib=element.attrib,
+                         attrib=attrib,
                          nsmap=element.nsmap)
     copy.text = element.text
     copy.tail = element.tail
 
     if copy_level != 0:
         for child in element.iterchildren(etree.Element):
-            copy.append(copy_element(child, copy_level - 1))
+            copy.append(copy_element(child, copy_level - 1, rm_attr))
 
     return copy
 
@@ -325,7 +327,7 @@ class FomodElement(etree.ElementBase):
         """
         schema_elem = copy_schema(self._schema_element,
                                   copy_level=1, rm_attr=True)
-        self_copy = copy_element(self, copy_level=1)
+        self_copy = copy_element(self, copy_level=1, rm_attr=True)
 
         test_elem = etree.Element(tag)
         schema = etree.XMLSchema(schema_elem)
@@ -453,6 +455,11 @@ class FomodElement(etree.ElementBase):
 
         schema_type = get_complex_type(self._schema_element)
         attr_list = schema_type.xpath(attr_exp)
+
+        attr_grs = schema_type.findall('{*}attributeGroup')
+        for attrgr_ref in attr_grs:
+            attrgr_elem = get_attributegroup_elem(attrgr_ref)
+            attr_list.extend(attrgr_elem.xpath(attr_exp))
 
         for attr in attr_list:
             name = attr.get('name')

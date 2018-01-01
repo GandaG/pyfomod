@@ -387,6 +387,22 @@ class Test_FomodElement:
         elem._schema_element = schema
         assert test_func(elem) == [expected]
 
+        # same as above vis attributeGroup
+        schema = etree.fromstring("<schema>"
+                                  "<element name='a'>"
+                                  "<complexType>"
+                                  "<attributeGroup ref='attrgr'/>"
+                                  "</complexType>"
+                                  "</element>"
+                                  "<attributeGroup name='attrgr'>"
+                                  "<attribute name='attr' type='xs:string'/>"
+                                  "</attributeGroup>"
+                                  "</schema>")
+        expected = tree.Attribute("attr", None, None,
+                                  "string", "optional", None)
+        elem._schema_element = schema[0]
+        assert test_func(elem) == [expected]
+
         # restrictions
         schema = etree.fromstring("<element name='a'>"
                                   "<complexType>"

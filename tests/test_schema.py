@@ -1,3 +1,5 @@
+from copy import deepcopy
+
 from lxml import etree
 from pyfomod import schema
 
@@ -299,6 +301,17 @@ def test_get_attribute_base():
     assert_elem_eq(test_func(tree[0]), tree[1])
 
 
+def test_get_attributegroup_elem():
+    test_func = schema.get_attributegroup_elem
+    tree = etree.fromstring("<schema>"
+                            "<element name='a'>"
+                            "<attributeGroup ref='group_ref'/>"
+                            "</element>"
+                            "<attributeGroup name='group_ref'/>"
+                            "</schema>")
+    assert test_func(tree[0][0]) is tree[1]
+
+
 def test_get_order_from_group():
     test_func = schema.get_order_from_group
     tree = etree.fromstring("<root>"
@@ -369,6 +382,31 @@ def test_copy_schema(mock_root):
     assert_elem_eq(mock_root.call_args[0][1], test_elem)
     mock_root.reset_mock()
     assert_elem_eq(test_func(test_elem, False)[0], test_elem)
+
+    # test attributeGroup
+    test_schm = etree.fromstring("<schema>"
+                                 "<element name='a'>"
+                                 "<complexType>"
+                                 "<attributeGroup ref='attrgr'/>"
+                                 "</complexType>"
+                                 "</element>"
+                                 "<attributeGroup name='attrgr'>"
+                                 "<attribute name='attr' type='xs:string'/>"
+                                 "</attributeGroup>"
+                                 "</schema>")
+    test_elem = test_schm[0]
+    test_atgr = test_schm[1]
+    test_func(test_elem, True, -1)
+    assert_elem_eq(mock_root.call_args[0][0], test_elem)
+    assert_elem_eq(mock_root.call_args[0][1], test_elem)
+    assert_elem_eq(mock_root.call_args[0][2], test_atgr)
+    mock_root.reset_mock()
+    assert_elem_eq(test_func(test_elem, False)[0], test_elem)
+    assert_elem_eq(test_func(test_elem, False)[1], test_atgr)
+    mock_root.reset_mock()
+    elem_copy = deepcopy(test_elem)
+    elem_copy[0].clear()
+    assert_elem_eq(test_func(test_elem, False, -1, True)[0], elem_copy)
 
     # a complex element schema
     test_elem = etree.fromstring("<element name='aa' type='a'/>")

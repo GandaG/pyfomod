@@ -222,6 +222,14 @@ def get_attribute_base(base):
     return get_root(base).find(type_exp)
 
 
+def get_attributegroup_elem(attrgr_ref):
+    """Grabs the attributeGroup element from ``attrgr_ref``."""
+    attrgr_elem_exp = ("{*}attributeGroup[@name=\"" +
+                       attrgr_ref.get('ref') +
+                       "\"]")
+    return get_root(attrgr_ref).find(attrgr_elem_exp)
+
+
 def get_order_from_group(group_ref):
     """Returns the order indicator from a group reference."""
     return get_order_elem(get_group_elem(group_ref))
@@ -286,7 +294,8 @@ def copy_schema(element, make_root=True, copy_level=0, rm_attr=False):
     results = [schema_elem]
 
     if is_complex_element(element):
-        schema_type = deepcopy(get_complex_type(element))
+        orig_type = get_complex_type(element)
+        schema_type = deepcopy(orig_type)
         if is_separate_element(element):
             results.append(schema_type)
         else:
@@ -295,7 +304,7 @@ def copy_schema(element, make_root=True, copy_level=0, rm_attr=False):
         if get_order_from_elem(element) is not None:
             if has_group_ref(schema_type):
                 group_elem = deepcopy(
-                    get_group_elem(get_group_ref(get_complex_type(element))))
+                    get_group_elem(get_group_ref(orig_type)))
                 order_elem = get_order_elem(group_elem)
                 results.append(group_elem)
             else:
@@ -313,21 +322,40 @@ def copy_schema(element, make_root=True, copy_level=0, rm_attr=False):
                             any(True for a in results
                                 if a.get('name') == elem.get('type'))):
                         continue
-                    for spec in copy_schema(elem, False, copy_level - 1)[1:]:
+                    for spec in copy_schema(elem,
+                                            False,
+                                            copy_level - 1,
+                                            rm_attr)[1:]:
                         exists = any(True for a in results
                                      if a.get('name') == spec.get('name'))
                         if not exists:
                             results.append(spec)
 
-        for attr in get_complex_type(element).iter('{*}attribute'):
+        for attr in reversed(list(orig_type.iter('{*}attribute'))):
             if rm_attr:
-                attr.getparent().remove(attr)
+                parent = attr.getparent()
+                par_path = etree.ElementTree(orig_type).getelementpath(parent)
+                attr_path = etree.ElementTree(orig_type).getelementpath(attr)
+                parent = schema_type.find(par_path)
+                parent.remove(schema_type.find(attr_path))
                 continue
             attr_t = attr.get('type')
             if attr_t is not None and not is_builtin_type(attr):
                 type_exp = "{{*}}simpleType[@name=\"{}\"]".format(attr_t)
-                attr_type_orig = get_root(element).find(type_exp)
-                results.append(deepcopy(attr_type_orig))
+                if not any(True for a in results if a.get('name') == attr_t):
+                    attr_type_orig = get_root(element).find(type_exp)
+                    results.append(deepcopy(attr_type_orig))
+
+        for attrgr in reversed(list(orig_type.iter('{*}attributeGroup'))):
+            if rm_attr:
+                parent = attrgr.getparent()
+                par_path = etree.ElementTree(orig_type).getelementpath(parent)
+                attr_path = etree.ElementTree(orig_type).getelementpath(attrgr)
+                parent = schema_type.find(par_path)
+                parent.remove(schema_type.find(attr_path))
+                continue
+            attrgr_elem = get_attributegroup_elem(attrgr)
+            results.append(deepcopy(attrgr_elem))
 
     if make_root:
         return make_schema_root(schema_elem, *results)
