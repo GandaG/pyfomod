@@ -1,5 +1,13 @@
 ## Changelog
 
+#### 0.3.2
+
+* `FomodElement.add_child` now returns the added element.
+* `FomodElement.add_child` should now create *type* element instead
+  of *dependencyType* under *typeDescriptor* element.
+* Added setters to metadata properties in `Root`.
+* Attributes should now be handled correctly.
+
 #### 0.3.1
 
 * Updated custom fomod schema to be inline with the changes in 5.1
