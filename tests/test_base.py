@@ -881,32 +881,23 @@ class Test_FomodElement:
         elem1._schema_element = schema[0][0][0][0]
 
         with pytest.raises(ValueError):
-            test_func(root, elem1, 0)
+            test_func(root, elem1)
 
         root.append(elem1)
-        assert not test_func(root, elem1, 0)
+        assert not test_func(root, elem1)
 
         elem2 = make_element('b')
         elem2._schema_element = schema[0][0][0][0]
         root.append(elem2)
-        assert not test_func(root, elem1, 2)
-        assert not test_func(root, elem1, -2)
-
-        elem3 = make_element('b')
-        elem3._schema_element = schema[0][0][0][0]
-        root.append(elem3)
-        assert test_func(root, elem1, 2)
-        assert test_func(root, elem1, 0)
-        assert test_func(root, elem2, 1)
-        assert test_func(root, elem2, -1)
-        assert test_func(root, elem3, 0)
-        assert test_func(root, elem3, -2)
+        assert test_func(root, elem1)
+        assert test_func(root, elem2)
 
     def test_reorder_child(self):
         test_func = base.FomodElement.reorder_child
         ElementTest._assert_valid = base.FomodElement._assert_valid
         ElementTest.can_reorder_child = base.FomodElement.can_reorder_child
         ElementTest._comment = None
+        ElementTest.children = base.FomodElement.children
 
         schema = etree.fromstring("<xs:schema xmlns:xs='http://www"
                                   ".w3.org/2001/XMLSchema'>"
@@ -934,25 +925,36 @@ class Test_FomodElement:
         elem2 = make_element('b')
         elem2._schema_element = schema[0][0][0][0]
         root.append(elem2)
-        with pytest.raises(ValueError):
-            test_func(root, elem1, 2)
-        with pytest.raises(ValueError):
-            test_func(root, elem1, -2)
+        assert list(root) == [elem1, elem2]
+        test_func(root, elem1, 2)
+        assert list(root) == [elem2, elem1]
+        test_func(root, elem1, -2)
+        assert list(root) == [elem1, elem2]
 
         elem3 = make_element('b')
         elem3._schema_element = schema[0][0][0][0]
         root.append(elem3)
+        assert list(root) == [elem1, elem2, elem3]
         test_func(root, elem2, 1)
         assert list(root) == [elem1, elem3, elem2]
         test_func(root, elem2, -1)
         assert list(root) == [elem1, elem2, elem3]
 
-        elem2._comment = etree.Comment('comment elem2')
-        root.insert(root.index(elem2), elem2._comment)
+        elem2_com = elem2._comment = etree.Comment('comment elem2')
+        root.insert(root.index(elem2), elem2_com)
+        assert list(root) == [elem1, elem2_com, elem2, elem3]
         test_func(root, elem2, 1)
-        assert list(root) == [elem1, elem3, elem2._comment, elem2]
+        assert list(root) == [elem1, elem3, elem2_com, elem2]
         test_func(root, elem2, -2)
-        assert list(root) == [elem2._comment, elem2, elem1, elem3]
+        assert list(root) == [elem2_com, elem2, elem1, elem3]
+        test_func(root, elem2, 1)
+        assert list(root) == [elem1, elem2_com, elem2, elem3]
+
+        elem3_com = elem3._comment = etree.Comment('comment elem3')
+        root.insert(root.index(elem3), elem3_com)
+        assert list(root) == [elem1, elem2_com, elem2, elem3_com, elem3]
+        test_func(root, elem1, 1)
+        assert list(root) == [elem2_com, elem2, elem1, elem3_com, elem3]
 
     def test_copy(self):
         test_func = base.FomodElement.__copy__

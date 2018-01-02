@@ -835,24 +835,18 @@ class FomodElement(etree.ElementBase):
         else:
             raise ValueError("Child cannot be replaced.")
 
-    def can_reorder_child(self, child, move):
+    def can_reorder_child(self, child):
         """
-        Checks if a given child can be reordered by the given amount.
-        To check whether the child can be reordered at all pass *0* to
-        ``move``.
+        Checks if a given child can be reordered.
 
         This is only possible if there are at least two children with the
-        same tag as ``child`` and ``move`` does not exceed the movement
-        restrictions.
+        same tag as ``child``.
 
         Args:
             child (FomodElement): The child element to reorder.
-            move (int): The amount to move the child by.
-                If negative the child is moved back and if positive
-                the child is moved forward.
 
         Returns:
-            bool: Whether the child can be reordered by the given amount.
+            bool: Whether the child can be reordered.
 
         Raises:
             ValueError: If child is not a child of this element.
@@ -865,12 +859,7 @@ class FomodElement(etree.ElementBase):
         child_list = self.findall(child.tag)
         if len(child_list) < 2:
             return False
-
-        index = child_list.index(child)
-        if -(index) <= move <= (len(child_list) - 1 - index):
-            return True
-
-        return False
+        return True
 
     def reorder_child(self, child, move):
         """
@@ -915,17 +904,23 @@ class FomodElement(etree.ElementBase):
         """
         self._assert_valid()
 
-        if not self.can_reorder_child(child, move):
+        if not self.can_reorder_child(child):
             raise ValueError("child cannot be reordered.")
 
-        index = self.index(child)
-        change = index + move
+        index = self.children().index(child)
         if move > 0:
-            change += 1
-            change += len(list(child.itersiblings(etree.Comment)))
+            move += 1
+        change = index + move
+        if change <= 0:
+            change = 0
+        elif change >= len(self.children()):
+            change = len(self)
         else:
-            change -= len(list(child.itersiblings(etree.Comment,
-                                                  preceding=True)))
+            indexed_child = self.children()[change]
+            if indexed_child._comment is not None:
+                change = self.index(indexed_child._comment)
+            else:
+                change = self.index(indexed_child)
 
         self.insert(change, child)
         if child._comment is not None:
