@@ -1,5 +1,11 @@
 ## Changelog
 
+#### 0.3.3
+
+* Removed second argument to `can_reorder_child` - movement is no longer
+  restricted.
+* Fixed installer module's documentation.
+
 #### 0.3.2
 
 * `FomodElement.add_child` now returns the added element.
