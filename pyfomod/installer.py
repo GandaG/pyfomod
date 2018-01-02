@@ -436,14 +436,15 @@ class Installer(object):
     @property
     def flag_states(self):
         """
-        dict: The current mapping of ("flag name": "flag value").
+        A dictionary with the current mapping of ("flag name": "flag value").
         """
         return self._flag_states
 
     @property
     def collected_files(self):
         """
-        dict: The current mapping of ("file/folder source": "destination").
+        A dictionary with the current mapping of
+        ("file/folder source": "destination").
         """
         sorted_keys = sorted(self._collected_files.keys(), reverse=True)
         final = ChainMap()
