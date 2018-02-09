@@ -585,6 +585,13 @@ class Test_FomodElement:
         with pytest.raises(ValueError):
             test_func(elem, 'b', None)
 
+    def test_get_root(self):
+        test_func = base.FomodElement.get_root
+
+        with mock.patch('pyfomod.base.get_root') as mock_root:
+            test_func(0)
+            mock_root.assert_called_once_with(0)
+
     def test_children(self):
         test_func = base.FomodElement.children
 

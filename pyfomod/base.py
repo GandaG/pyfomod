@@ -25,7 +25,7 @@ from .schema import (copy_schema, get_attribute_type, get_attributegroup_elem,
                      get_builtin_type, get_builtin_value, get_complex_type,
                      get_doc_text, get_max_occurs, get_min_occurs,
                      get_order_from_elem, get_order_from_group,
-                     get_order_from_type, is_builtin_attribute,
+                     get_order_from_type, get_root, is_builtin_attribute,
                      is_complex_element, localname)
 from .validation import FOMOD_SCHEMA_TREE, assert_valid
 
@@ -580,6 +580,12 @@ class FomodElement(etree.ElementBase):
         except AssertionError:
             raise ValueError("value is not of an acceptable type.")
         self.set(name, value)
+
+    def get_root(self):
+        """
+        Returns the :class:`~pyfomod.tree.Root` object of this tree.
+        """
+        return get_root(self)
 
     def children(self):
         """
