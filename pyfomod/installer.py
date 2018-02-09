@@ -19,12 +19,13 @@ This module provides a full installer coroutine.
 import os
 import uuid
 from collections import ChainMap, OrderedDict
-from shutil import Error, copy2, copystat
+from shutil import copy2
 
 from packaging.version import parse as parse_ver
 
 from .parser import parse
 from .tree import Root
+from .utils import copytree
 
 
 class MissingDependency(Exception):
@@ -61,67 +62,6 @@ class NotUsablePluginError(Exception):
     def __init__(self, name):
         msg = 'Plugin {} was selected but is NotUsable'.format(name)
         super().__init__(self, msg)
-
-
-# pylint: disable=R0913
-def _copytree(src, dst, symlinks=False, ignore=None, copy_function=copy2,
-              ignore_dangling_symlinks=False):  # pragma: no cover
-    """
-    A monkey-patched version of shutil's copytree function that allows
-    **dst** to already exist. It literally took one argument change -.-
-    """
-    names = os.listdir(src)
-    if ignore is not None:
-        ignored_names = ignore(src, names)
-    else:
-        ignored_names = set()
-
-    os.makedirs(dst, exist_ok=True)  # <- THIS WAS THE CHANGE
-    errors = []
-    for name in names:
-        if name in ignored_names:
-            continue
-        srcname = os.path.join(src, name)
-        dstname = os.path.join(dst, name)
-        try:
-            if os.path.islink(srcname):
-                linkto = os.readlink(srcname)
-                if symlinks:
-                    # We can't just leave it to `copy_function` because legacy
-                    # code with a custom `copy_function` may rely on copytree
-                    # doing the right thing.
-                    os.symlink(linkto, dstname)
-                    copystat(srcname, dstname, follow_symlinks=not symlinks)
-                else:
-                    # ignore dangling symlink if the flag is on
-                    if not os.path.exists(linkto) and ignore_dangling_symlinks:
-                        continue
-                    # otherwise let the copy occurs. copy2 will raise an error
-                    if os.path.isdir(srcname):
-                        _copytree(srcname, dstname, symlinks, ignore,
-                                  copy_function)
-                    else:
-                        copy_function(srcname, dstname)
-            elif os.path.isdir(srcname):
-                _copytree(srcname, dstname, symlinks, ignore, copy_function)
-            else:
-                # Will raise a SpecialFileError for unsupported file types
-                copy_function(srcname, dstname)
-        # catch the Error from the recursive copytree so that we can
-        # continue with other files
-        except Error as err:
-            errors.extend(err.args[0])
-        except OSError as why:
-            errors.append((srcname, dstname, str(why)))
-    try:
-        copystat(src, dst)
-    except OSError as why:
-        # Copying file access times may fail on Windows
-        if getattr(why, 'winerror', None) is None:
-            errors.append((src, dst, str(why)))
-    if errors:
-        raise Error(errors)
-    return dst
 
 
 def _assert_dependencies(depend, flag_states, dest=None, game_version=None):
@@ -689,6 +629,6 @@ class Installer(object):
         for src in self.collected_files:
             dest_path = os.path.join(dest, self.collected_files[src])
             if os.path.isdir(src):
-                _copytree(src, dest_path)
+                copytree(src, dest_path)
             else:
                 copy2(src, dest_path)
