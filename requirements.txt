@@ -1,4 +1,4 @@
 tox
-bumpversion
+bump2version
 coveralls
 wheel
