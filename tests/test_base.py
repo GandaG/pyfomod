@@ -1,3 +1,5 @@
+import re
+
 from lxml import etree
 from pyfomod import base, validation
 
@@ -601,6 +603,37 @@ class Test_FomodElement:
         elem3 = etree.SubElement(root, 'c')
 
         assert test_func(root) == [elem1, elem2, elem3]
+
+    def test_get_child(self):
+        test_func = base.FomodElement.get_child
+        ElementTest.set_attribute = base.FomodElement.set
+
+        root = ElementTest()
+        root.add_child = lambda x: etree.SubElement(root, x)
+        elem1 = etree.SubElement(root, 'a')
+        elem2 = etree.SubElement(root, 'a', attr1='a')
+        elem3 = etree.SubElement(root, 'a', attr1='a', attr2='b')
+        elem4 = etree.SubElement(root, 'b')
+
+        assert test_func(root, 'a') is elem1
+        assert test_func(root, 'a', attr1='a') is elem2
+        assert test_func(root, 'a', attr1='a', attr2='b') is elem3
+        assert test_func(root, 'b') is elem4
+
+        elem5 = test_func(root, 'c', create=True, attr1="7")
+        assert elem5.tag == 'c'
+        assert elem5.get('attr1') == '7'
+        assert len(root) == 5
+        assert root[-1] is elem5
+
+    def test_get_children(self):
+        test_func = base.FomodElement.get_children
+
+        mock_elem = mock.Mock(spec=base.FomodElement)
+        test_func(mock_elem, 'a', attr1='0', attr2='1337')
+        expected_regex = r'a(\[@attr1="0"\]\[@attr2="1337"\]|' \
+                         '\[@attr2="1337"\]\[@attr1="0"\])'
+        assert re.match(expected_regex, mock_elem.findall.call_args[0][0])
 
     def test_valid_children(self):
         test_func = base.FomodElement.valid_children

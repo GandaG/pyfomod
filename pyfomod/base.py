@@ -599,6 +599,41 @@ class FomodElement(etree.ElementBase):
         """
         return list(self.iterchildren(tag=etree.Element))
 
+    def get_child(self, tag, create=False, **attrs):
+        """
+        Returns the first child of this element with matching *tag*. The search
+        can be further refined be specifying attributes as key-value pairs. An
+        example would be::
+
+            self.get_child('tag', attribute1="value1", attribute2="value2")
+
+        If no matching child is found and *create* is ``False``, ``None`` is
+        returned. If *create* is ``True`` then a new child is added with *tag*
+        and any attributes specified in *attrs* and then returned.
+        """
+        search_exp = tag
+        for key, value in attrs.items():
+            search_exp += '[@{}="{}"]'.format(key, value)
+        child = self.find(search_exp)
+        if child is None and create:
+            child = self.add_child(tag)
+            for attr, value in attrs.items():
+                child.set_attribute(attr, value)
+        return child
+
+    def get_children(self, tag, **attrs):
+        """
+        Finds and returns all children of this element with matching *tag*. The
+        search can be further refined be specifying attributes as key-value
+        pairs. An example would be::
+
+            self.get_children('tag', attribute1="value1", attribute2="value2")
+        """
+        search_exp = tag
+        for key, value in attrs.items():
+            search_exp += '[@{}="{}"]'.format(key, value)
+        return self.findall(search_exp)
+
     def valid_children(self):
         """
         Gets all the possible, valid children for this element.
