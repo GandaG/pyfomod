@@ -1,0 +1,259 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" version="2.0">
+    <xs:element name="config">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="moduleName" type="moduleTitle"/>
+                <xs:element name="moduleImage" type="headerImage" minOccurs="0"/>
+                <xs:element name="moduleDependencies" type="compositeDependency" minOccurs="0"/>
+                <xs:element name="requiredInstallFiles" type="fileList" minOccurs="0"/>
+                <xs:element name="installSteps" type="stepList" minOccurs="0"/>
+                <xs:element name="conditionalFileInstalls" type="conditionalFileInstallList" minOccurs="0"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:complexType name="moduleTitle">
+        <xs:simpleContent>
+            <xs:extension base="xs:string">
+                <xs:attribute name="position" use="optional" default="Left">
+                    <xs:simpleType>
+                        <xs:restriction base="xs:string">
+                            <xs:enumeration value="Left"/>
+                            <xs:enumeration value="Right"/>
+                            <xs:enumeration value="RightOfImage"/>
+                        </xs:restriction>
+                    </xs:simpleType>
+                </xs:attribute>
+                <xs:attribute name="colour" use="optional" default="000000" type="xs:hexBinary"/>
+            </xs:extension>
+        </xs:simpleContent>
+    </xs:complexType>
+
+    <xs:complexType name="headerImage">
+        <xs:attribute name="path" use="optional" type="xs:string"/>
+        <xs:attribute name="showImage" type="xs:boolean" default="true" use="optional"/>
+        <xs:attribute name="showFade" type="xs:boolean" default="true" use="optional"/>
+        <xs:attribute name="height" type="xs:int" default="-1" use="optional"/>
+    </xs:complexType>
+
+    <xs:complexType name="compositeDependency">
+        <xs:sequence>
+            <xs:choice maxOccurs="unbounded">
+                <xs:element name="fileDependency" type="fileDependency" maxOccurs="unbounded"/>
+                <xs:element name="flagDependency" type="flagDependency" maxOccurs="unbounded"/>
+                <xs:element name="gameDependency" type="versionDependency" minOccurs="0" maxOccurs="1"/>
+                <xs:element name="fommDependency" type="versionDependency" minOccurs="0" maxOccurs="1"/>
+                <xs:element name="dependencies" type="compositeDependency"/>
+            </xs:choice>
+        </xs:sequence>
+        <xs:attribute name="operator" default="And">
+            <xs:simpleType>
+                <xs:restriction base="xs:string">
+                    <xs:enumeration value="And"/>
+                    <xs:enumeration value="Or"/>
+                </xs:restriction>
+            </xs:simpleType>
+        </xs:attribute>
+    </xs:complexType>
+
+    <xs:complexType name="fileDependency">
+        <xs:attribute name="file" type="xs:string" use="required"/>
+        <xs:attribute name="state" use="required">
+            <xs:simpleType>
+                <xs:restriction base="xs:string">
+                    <xs:enumeration value="Missing"/>
+                    <xs:enumeration value="Inactive"/>
+                    <xs:enumeration value="Active"/>
+                </xs:restriction>
+            </xs:simpleType>
+        </xs:attribute>
+    </xs:complexType>
+
+    <xs:complexType name="flagDependency">
+        <xs:attribute name="flag" type="xs:string" use="required"/>
+        <xs:attribute name="value" type="xs:string" use="required"/>
+    </xs:complexType>
+
+    <xs:complexType name="versionDependency">
+        <xs:attribute name="version" type="xs:string" use="required"/>
+    </xs:complexType>
+
+    <xs:complexType name="fileList">
+        <xs:sequence>
+            <xs:choice minOccurs="1" maxOccurs="unbounded">
+                <xs:element name="file" type="fileType" minOccurs="0" maxOccurs="unbounded"/>
+                <xs:element name="folder" type="folderType" minOccurs="0" maxOccurs="unbounded"/>
+            </xs:choice>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="fileType">
+        <xs:attribute name="source" type="xs:string" use="required"/>
+        <xs:attributeGroup ref="systemItemAttributes"/>
+    </xs:complexType>
+
+    <xs:complexType name="folderType">
+        <xs:attribute name="source" type="xs:string" use="required"/>
+        <xs:attributeGroup ref="systemItemAttributes"/>
+    </xs:complexType>
+
+    <xs:complexType name="stepList">
+        <xs:sequence>
+            <xs:element name="installStep" type="installStep" minOccurs="1" maxOccurs="unbounded"/>
+        </xs:sequence>
+        <xs:attribute name="order" type="orderEnum" use="optional" default="Ascending"/>
+    </xs:complexType>
+
+    <xs:complexType name="installStep">
+        <xs:sequence>
+            <xs:element name="visible" type="compositeDependency" minOccurs="0"/>
+            <xs:element name="optionalFileGroups" type="groupList" minOccurs="1"/>
+        </xs:sequence>
+        <xs:attribute name="name" type="xs:string" use="required"/>
+    </xs:complexType>
+
+    <xs:complexType name="groupList">
+        <xs:sequence>
+            <xs:element name="group" type="group" maxOccurs="unbounded"/>
+        </xs:sequence>
+        <xs:attribute name="order" type="orderEnum" use="optional" default="Ascending"/>
+    </xs:complexType>
+
+    <xs:complexType name="group">
+        <xs:sequence>
+            <xs:element name="plugins" type="pluginList"/>
+        </xs:sequence>
+        <xs:attribute name="name" type="xs:string" use="required"/>
+        <xs:attribute name="type" use="required">
+            <xs:simpleType>
+                <xs:restriction base="xs:string">
+                    <xs:enumeration value="SelectAtLeastOne"/>
+                    <xs:enumeration value="SelectAtMostOne"/>
+                    <xs:enumeration value="SelectExactlyOne"/>
+                    <xs:enumeration value="SelectAll"/>
+                    <xs:enumeration value="SelectAny"/>
+                </xs:restriction>
+            </xs:simpleType>
+        </xs:attribute>
+    </xs:complexType>
+
+    <xs:complexType name="pluginList">
+        <xs:sequence>
+            <xs:element name="plugin" type="plugin" maxOccurs="unbounded"/>
+        </xs:sequence>
+        <xs:attribute name="order" type="orderEnum" use="optional" default="Ascending"/>
+    </xs:complexType>
+
+    <xs:complexType name="plugin">
+        <xs:sequence>
+            <xs:element name="description" type="xs:string"/>
+            <xs:element name="image" type="image" minOccurs="0"/>
+            <xs:choice>
+                <xs:sequence>
+                    <xs:element name="files" type="fileList"/>
+                    <xs:element name="conditionFlags" type="conditionFlagList" minOccurs="0"/>
+                </xs:sequence>
+                <xs:sequence>
+                    <xs:element name="conditionFlags" type="conditionFlagList"/>
+                    <xs:element name="files" type="fileList" minOccurs="0"/>
+                </xs:sequence>
+            </xs:choice>
+            <xs:element name="typeDescriptor" type="pluginTypeDescriptor"/>
+        </xs:sequence>
+        <xs:attribute name="name" type="xs:string" use="required"/>
+    </xs:complexType>
+
+    <xs:complexType name="image">
+        <xs:attribute name="path" use="required" type="xs:string"/>
+    </xs:complexType>
+
+    <xs:complexType name="conditionFlagList">
+        <xs:sequence>
+            <xs:element name="flag" type="setConditionFlag" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="setConditionFlag">
+        <xs:simpleContent>
+            <xs:extension base="xs:string">
+                <xs:attribute name="name" type="xs:string" use="required"/>
+            </xs:extension>
+        </xs:simpleContent>
+    </xs:complexType>
+
+    <xs:complexType name="pluginTypeDescriptor">
+        <xs:choice>
+            <xs:element name="type" type="pluginType"/>
+            <xs:element name="dependencyType" type="dependencyPluginType"/>
+        </xs:choice>
+    </xs:complexType>
+
+    <xs:complexType name="pluginType">
+        <xs:attribute name="name" use="required" type="pluginTypeEnum"/>
+    </xs:complexType>
+
+    <xs:complexType name="dependencyPluginType">
+        <xs:sequence>
+            <xs:element name="defaultType" type="pluginType"/>
+            <xs:element name="patterns" type="dependencyPatternList"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="dependencyPatternList">
+        <xs:sequence>
+            <xs:element name="pattern" type="dependencyPattern" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="dependencyPattern">
+        <xs:sequence>
+            <xs:element name="dependencies" type="compositeDependency"/>
+            <xs:element name="type" type="pluginType"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="conditionalFileInstallList">
+        <xs:sequence>
+            <xs:element name="patterns" type="conditionalInstallPatternList"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="conditionalInstallPatternList">
+        <xs:sequence>
+            <xs:element name="pattern" type="conditionalInstallPattern" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="conditionalInstallPattern">
+        <xs:sequence>
+            <xs:element name="dependencies" type="compositeDependency"/>
+            <xs:element name="files" type="fileList"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:simpleType name="pluginTypeEnum">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="Required"/>
+            <xs:enumeration value="Optional"/>
+            <xs:enumeration value="Recommended"/>
+            <xs:enumeration value="NotUsable"/>
+            <xs:enumeration value="CouldBeUsable"/>
+        </xs:restriction>
+    </xs:simpleType>
+
+    <xs:simpleType name="orderEnum">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="Ascending"/>
+            <xs:enumeration value="Descending"/>
+            <xs:enumeration value="Explicit"/>
+        </xs:restriction>
+    </xs:simpleType>
+
+    <xs:attributeGroup name="systemItemAttributes">
+        <xs:attribute name="destination" type="xs:string"/>
+        <xs:attribute name="alwaysInstall" type="xs:boolean" default="false"/>
+        <xs:attribute name="installIfUsable" type="xs:boolean" default="false"/>
+        <xs:attribute name="priority" type="xs:integer" default="0"/>
+    </xs:attributeGroup>
+</xs:schema>

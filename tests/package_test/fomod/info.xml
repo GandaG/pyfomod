@@ -1,0 +1,7 @@
+<fomod>
+  <Name>Example Mod</Name>
+  <Author>Example Author</Author>
+  <Version MachineVersion="1.2.3">1.2.3</Version>
+  <Description>This is an example mod.</Description>
+  <Website>https://example.website.com/example-mod</Website>
+</fomod>

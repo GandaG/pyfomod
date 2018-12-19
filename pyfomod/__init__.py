@@ -16,6 +16,7 @@
 
 __version__ = "0.3.3"
 
+from .parser import parse, write
 from .base import (
     Conditions,
     ConditionType,
