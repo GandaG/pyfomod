@@ -1,4 +1,0 @@
-tox
-bump2version
-coveralls
-wheel

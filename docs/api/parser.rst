@@ -1,6 +1,0 @@
-#####################
-Module pyfomod.parser
-#####################
-
-.. automodule:: pyfomod.parser
-    :members:
