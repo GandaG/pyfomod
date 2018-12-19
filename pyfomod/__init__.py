@@ -15,3 +15,23 @@
 """A high-level fomod library written in Python."""
 
 __version__ = "0.3.3"
+
+from .base import (
+    Conditions,
+    ConditionType,
+    FilePatterns,
+    Files,
+    FileType,
+    Flags,
+    Group,
+    GroupType,
+    Info,
+    Option,
+    OptionType,
+    Order,
+    Page,
+    Pages,
+    Root,
+    Type,
+    warn,
+)

@@ -16,3 +16,9 @@ classifiers = [
     "Topic :: Software Development :: Libraries",
 ]
 
+[tool.flit.metadata.requires-extra]
+test = [
+    "pytest",
+    "pytest-cov",
+    "pytest-sugar",
+]
