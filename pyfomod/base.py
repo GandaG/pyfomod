@@ -12,985 +12,1227 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
-This module holds the the key classes necessary for the low-level api.
-"""
+"""Base classes for pyfomod."""
 
-from collections import namedtuple
-from copy import deepcopy
-
-from lxml import etree
-
-from .schema import (copy_schema, get_attribute_type, get_attributegroup_elem,
-                     get_builtin_type, get_builtin_value, get_complex_type,
-                     get_doc_text, get_max_occurs, get_min_occurs,
-                     get_order_from_elem, get_order_from_group,
-                     get_order_from_type, get_root, is_builtin_attribute,
-                     is_complex_element, localname)
-from .validation import FOMOD_SCHEMA_TREE, assert_valid
-
-Attribute = namedtuple('Attribute', "name doc default type use restriction")
-"""
-This ``namedtuple`` represents a single possible attribute for a FomodElement.
-
-Attributes:
-    name (str): The identifier of this attribute.
-    doc (str): The schema documentation for this attribute.
-    default (str or None): The default value for this attribute or None if
-        none is specified.
-    type (str): The type of this attribute's value.
-    use (str): Either ``'optional'``, ``'required'`` or ``'prohibited'``.
-    restriction (AttrRestriction): A namedtuple with the attribute's
-        restrictions. For more info refer to :py:class:`AttrRestriction`.
-"""
-
-ATTR_REST_ATTRIBUTES = "type enum_list decimals length max_exc max_inc " \
-                        "max_len min_exc min_inc min_len pattern total_digits"
-AttrRestriction = namedtuple('AttrRestriction', ATTR_REST_ATTRIBUTES)
-"""
-This ``namedtuple`` represents a single attribute's value restrictions.
-For more information about restrictions refer to `W3Schools`_.
-
-.. _W3Schools: https://www.w3schools.com/xml/schema_facets.asp
-
-Attributes:
-    type (str): A string containing all restriction types separated by a
-        single whitespace. Example: ``'max_length min_length '``
-    enum_list (list(AttrRestElement)): A list of possible values for this
-        attribute.
-
-Warning:
-    Since none of the other restriction types occur in the actual schemas
-    all other attributes are always set to :py:class:`None`.
-"""
-
-AttrRestElement = namedtuple('AttrRestElement', 'value doc')
-"""
-This ``namedtuple`` represents a single value for a restriction.
-
-Attributes:
-    value (str): The string containing the value.
-    doc (str): The schema documentation for this value.
-"""
-
-ORDER_INDICATOR_ATTRIBUTES = 'type element_list max_occ min_occ'
-OrderIndicator = namedtuple('OrderIndicator', ORDER_INDICATOR_ATTRIBUTES)
-"""
-This ``namedtuple`` represents an order indicator in the element's schema.
-For more information about order indicators refer to `W3Schools`_.
-
-.. _W3Schools: https://www.w3schools.com/xml/schema_facets.asp
-
-Attributes:
-    type (str): Either ``'sequence'``, ``'choice'`` or ``'all'``.
-    element_list (list): A list of :py:class:`OrderIndicator` and
-        :py:class:`ChildElement` that translates an order of valid children.
-    max_occ (int): The maximum number of times this order can occur in a row.
-    min_occ (int): The minimum number of times this order can occur in a row.
-"""
-
-ChildElement = namedtuple('ChildElement', 'tag max_occ min_occ')
-"""
-This ``namedtuple`` represents a valid child of an element.
-
-Attributes:
-    tag (str): The tag of the possible child.
-    max_occ (int): The maximum number of times this child can occur in a row.
-    min_occ (int): The minimum number of times this child can occur in a row.
-"""
+import warnings
+from collections import OrderedDict
+from collections.abc import ItemsView, KeysView, Mapping, ValuesView
+from enum import Enum
 
 
-def copy_element(element, copy_level=0, rm_attr=False):
-    """
-    Provides a copy of ``element`` using the default element from lxml.
-    Strictly for usage with validation/simulation scenarios.
-
-    ``copy_level`` determines the level to copy to. ``-1`` refers to a
-    full deepcopy, ``0`` is a shallow copy.
-    """
-    attrib = {} if rm_attr else element.attrib
-    copy = etree.Element(element.tag,
-                         attrib=attrib,
-                         nsmap=element.nsmap)
-    copy.text = element.text
-    copy.tail = element.tail
-
-    if copy_level != 0:
-        for child in element.iterchildren(etree.Element):
-            copy.append(copy_element(child, copy_level - 1, rm_attr))
-
-    return copy
+class ValidationWarning(UserWarning):
+    def __init__(self, title, msg, elem, *args, **kwargs):
+        self.title = title
+        self.msg = msg
+        self.elem = elem
+        super().__init__("{} - {}".format(title, msg), *args, **kwargs)
 
 
-class FomodElement(etree.ElementBase):
-    """
-    The base class for all FOMOD elements. This, along with the lxml API,
-    serves as the low-level API for pyfomod.
+class CriticalWarning(ValidationWarning):
+    def __init__(self, title, msg, elem, *args, **kwargs):
+        msg += " This may stop users from installing."
+        super().__init__(title, msg, elem, *args, **kwargs)
 
-    Attributes:
-        _schema (lxml.etree._Element): The schema this element belongs to.
-        _schema_element (lxml.etree._Element): The element in the schema this
-            element corresponds to.
-    """
+
+def warn(title, msg, elem, critical=False):
+    if critical:
+        warning = CriticalWarning(title, msg, elem)
+    else:
+        warning = ValidationWarning(title, msg, elem)
+    warnings.warn(warning, stacklevel=2)
+
+
+class ConditionType(Enum):
+    AND = "And"
+    OR = "Or"
+
+
+class FileType(Enum):
+    MISSING = "Missing"
+    INACTIVE = "Inactive"
+    ACTIVE = "Active"
+
+
+class Order(Enum):
+    ASCENDING = "Ascending"
+    DESCENDING = "Descending"
+    EXPLICIT = "Explicit"
+
+
+class GroupType(Enum):
+    ATLEASTONE = "SelectAtLeastOne"
+    ATMOSTONE = "SelectAtMostOne"
+    EXACTLYONE = "SelectExactlyOne"
+    ALL = "SelectAll"
+    ANY = "SelectAny"
+
+
+class OptionType(Enum):
+    REQUIRED = "Required"
+    OPTIONAL = "Optional"
+    RECOMMENDED = "Recommended"
+    NOTUSABLE = "NotUsable"
+    COULDBEUSABLE = "CouldBeUsable"
+
+
+class HashableSequence(object):
+    def __getitem__(self, key):
+        raise NotImplementedError
+
+    def __setitem__(self, key, value):
+        raise NotImplementedError
+
+    def __delitem__(self, key):
+        raise NotImplementedError
+
+    def __len__(self):
+        raise NotImplementedError
+
+    def insert(self, index, value):
+        raise NotImplementedError
+
+    def __iter__(self):
+        i = 0
+        try:
+            while True:
+                v = self[i]
+                yield v
+                i += 1
+        except IndexError:
+            return
+
+    def __contains__(self, value):
+        for v in self:
+            if v is value or v == value:
+                return True
+        return False
+
+    def __reversed__(self):
+        for i in reversed(range(len(self))):
+            yield self[i]
+
+    def index(self, value, start=0, stop=None):
+        if start is not None and start < 0:
+            start = max(len(self) + start, 0)
+        if stop is not None and stop < 0:
+            stop += len(self)
+
+        i = start
+        while stop is None or i < stop:
+            try:
+                v = self[i]
+                if v is value or v == value:
+                    return i
+            except IndexError:
+                break
+            i += 1
+        raise ValueError
+
+    def count(self, value):
+        return sum(1 for v in self if v is value or v == value)
+
+    def append(self, value):
+        self.insert(len(self), value)
+
+    def clear(self):
+        try:
+            while True:
+                self.pop()
+        except IndexError:
+            pass
+
+    def reverse(self):
+        n = len(self)
+        for i in range(n // 2):
+            self[i], self[n - i - 1] = self[n - i - 1], self[i]
+
+    def extend(self, values):
+        if values is self:
+            values = list(values)
+        for v in values:
+            self.append(v)
+
+    def pop(self, index=-1):
+        v = self[index]
+        del self[index]
+        return v
+
+    def remove(self, value):
+        del self[self.index(value)]
+
+    def __iadd__(self, values):
+        self.extend(values)
+        return self
+
+
+class HashableMapping(object):
+    def __getitem__(self, key):
+        raise NotImplementedError
+
+    def __setitem__(self, key, value):
+        raise NotImplementedError
+
+    def __delitem__(self, key):
+        raise NotImplementedError
+
+    def __iter__(self):
+        raise NotImplementedError
+
+    def __len__(self):
+        raise NotImplementedError
+
+    def __contains__(self, key):
+        try:
+            self[key]
+        except KeyError:
+            return False
+        else:
+            return True
+
+    def keys(self):
+        return KeysView(self)
+
+    def items(self):
+        return ItemsView(self)
+
+    def values(self):
+        return ValuesView(self)
+
+    def get(self, key, default=None):
+        try:
+            return self[key]
+        except KeyError:
+            return default
+
+    __marker = object()
+
+    def pop(self, key, default=__marker):
+        try:
+            value = self[key]
+        except KeyError:
+            if default is self.__marker:
+                raise
+            return default
+        else:
+            del self[key]
+            return value
+
+    def popitem(self):
+        try:
+            key = next(iter(self))
+        except StopIteration:
+            raise KeyError from None
+        value = self[key]
+        del self[key]
+        return key, value
+
+    def clear(self):
+        try:
+            while True:
+                self.popitem()
+        except KeyError:
+            pass
+
+    def update(*args, **kwargs):
+        if not args:
+            raise TypeError(
+                "descriptor 'update' of 'HashableMapping' object needs an argument"
+            )
+        self, *args = args
+        if len(args) > 1:
+            raise TypeError("update expected at most 1 arguments, got %d" % len(args))
+        if args:
+            other = args[0]
+            if isinstance(other, Mapping):
+                for key in other:
+                    self[key] = other[key]
+            elif hasattr(other, "keys"):
+                for key in other.keys():
+                    self[key] = other[key]
+            else:
+                for key, value in other:
+                    self[key] = value
+        for key, value in kwargs.items():
+            self[key] = value
+
+    def setdefault(self, key, default=None):
+        try:
+            return self[key]
+        except KeyError:
+            self[key] = default
+        return default
+
+
+class BaseFomod(object):
+    def __init__(self, tag, attrib):
+        self._tag = tag
+        self._attrib = attrib
+        self._children = OrderedDict()
+
+    def to_string(self):
+        raise NotImplementedError()
+
+    def validate(self, **callbacks):
+        for key, funcs in callbacks.items():
+            if isinstance(self, globals()[key]):
+                for func in funcs:
+                    func(self)
+
+    @staticmethod
+    def _write_attributes(attrib):
+        result = ""
+        for attr, value in attrib.items():
+            result += " "
+            result += str(attr)
+            result += "="
+            result += '"{}"'.format(str(value))
+        return result
+
+    def _write_children(self):
+        children = ""
+        for tag, data in self._children.items():
+            attribs = data[0]
+            text = data[1]
+            attribs_str = self._write_attributes(attribs)
+            if text:
+                children += "\n" + "<{0}{2}>{1}</{0}>".format(tag, text, attribs_str)
+            else:
+                children += "\n" + "<{}{}/>".format(tag, attribs_str)
+        return children
+
+
+class Root(BaseFomod):
+    def __init__(self, attrib=None):
+        if attrib is None:
+            attrib = {}
+        super().__init__("config", attrib)
+        # these attributes are set for max compatibility
+        schema_url = "http://qconsulting.ca/fo3/ModConfig5.0.xsd"
+        self._attrib = {
+            "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance",
+            "xsi:noNamespaceSchemaLocation": schema_url,
+        }
+        self._info = Info()
+        self._name = Name()
+        self._conditions = Conditions()
+        self._conditions._tag = "moduleDependencies"
+        self._files = Files()
+        self._files._tag = "requiredInstallFiles"
+        self._pages = Pages()
+        self._file_patterns = FilePatterns()
 
     @property
-    def max_occurences(self):
-        """
-        int or None:
-            Returns the maximum times this element can be
-            repeated or ``None`` if there is no limit.
-        """
-        return get_max_occurs(self._schema_element)
+    def name(self):
+        return self._name.name
+
+    @name.setter
+    def name(self, value):
+        if not isinstance(value, str):
+            raise ValueError("Value should be string.")
+        self._name.name = value
 
     @property
-    def min_occurences(self):
-        """
-        int:
-            Returns the minimum times this element has to be repeated.
-        """
-        return get_min_occurs(self._schema_element)
+    def author(self):
+        return self._info.get_text("Author")
+
+    @author.setter
+    def author(self, value):
+        if not isinstance(value, str):
+            raise ValueError("Value should be string.")
+        self._info.set_text("Author", value)
+
+    @property
+    def version(self):
+        return self._info.get_text("Version")
+
+    @version.setter
+    def version(self, value):
+        if not isinstance(value, str):
+            raise ValueError("Value should be string.")
+        self._info.set_text("Version", value)
+
+    @property
+    def description(self):
+        return self._info.get_text("Description")
+
+    @description.setter
+    def description(self, value):
+        if not isinstance(value, str):
+            raise ValueError("Value should be string.")
+        self._info.set_text("Description", value)
+
+    @property
+    def website(self):
+        return self._info.get_text("Website")
+
+    @website.setter
+    def website(self, value):
+        if not isinstance(value, str):
+            raise ValueError("Value should be string.")
+        self._info.set_text("Website", value)
+
+    @property
+    def conditions(self):
+        return self._conditions
+
+    @conditions.setter
+    def conditions(self, value):
+        if not isinstance(value, Conditions):
+            raise ValueError("Value should be Conditions.")
+        self._conditions = value
+        self._conditions._tag = "moduleDependencies"
+
+    @property
+    def files(self):
+        return self._files
+
+    @files.setter
+    def files(self, value):
+        if not isinstance(value, Files):
+            raise ValueError("Value should be Files.")
+        self._files = value
+        self._files._tag = "requiredInstallFiles"
+
+    @property
+    def pages(self):
+        return self._pages
+
+    @pages.setter
+    def pages(self, value):
+        if not isinstance(value, Pages):
+            raise ValueError("Value should be Pages.")
+        self._pages = value
+
+    @property
+    def file_patterns(self):
+        return self._file_patterns
+
+    @file_patterns.setter
+    def file_patterns(self, value):
+        if not isinstance(value, FilePatterns):
+            raise ValueError("Value should be FilePatterns.")
+        self._file_patterns = value
+
+    def to_string(self):
+        children = ""
+        head = "<{}{}>".format(self._tag, self._write_attributes(self._attrib))
+        children += "\n" + self._name.to_string()
+        children += self._write_children()  # moduleImage
+        if self._conditions:
+            children += "\n" + self._conditions.to_string()
+        if self._files:
+            children += "\n" + self._files.to_string()
+        if self._pages:
+            children += "\n" + self._pages.to_string()
+        if self._file_patterns:
+            children += "\n" + self._file_patterns.to_string()
+        children = children.replace("\n", "\n  ")
+        tail = "</{}>".format(self._tag)
+        return "{}{}\n{}".format(head, children, tail)
+
+    def validate(self, **callbacks):
+        super().validate(**callbacks)
+        flag_set = []
+        flag_dep = []
+
+        def parse_conditions(conditions):
+            result = []
+            for key, value in conditions.items():
+                if isinstance(key, Conditions):
+                    result.extend(parse_conditions(key))
+                elif isinstance(key, str) and isinstance(value, str):
+                    result.append((key, conditions))
+            return result
+
+        callbacks.setdefault("Conditions", []).append(
+            lambda x: flag_dep.extend(parse_conditions(x))
+        )
+        callbacks.setdefault("Flags", []).append(lambda x: flag_set.extend(x.keys()))
+        self._name.validate(**callbacks)
+        if self._conditions:
+            self._conditions.validate(**callbacks)
+        if self._files:
+            self._files.validate(**callbacks)
+        if self._pages:
+            self._pages.validate(**callbacks)
+        if self._file_patterns:
+            self._file_patterns.validate(**callbacks)
+        if not self._files and not self._pages and not self._file_patterns:
+            title = "Empty Installer"
+            msg = "This fomod is empty, nothing will be installed."
+            warn(title, msg, self)
+
+        for flag, instance in flag_dep:
+            if flag not in flag_set:
+                title = "Impossible Flags"
+                msg = 'The flag "{}" is never created or set.'.format(flag)
+                warn(title, msg, instance)
+
+
+class Info(BaseFomod):
+    def __init__(self, attrib=None):
+        if attrib is None:
+            attrib = {}
+        super().__init__("fomod", attrib)
+
+    def get_text(self, tag):
+        for key, value in self._children.items():
+            if key.lower() == tag.lower():
+                return value[1]
+        return ""
+
+    def set_text(self, tag, text):
+        for key, value in self._children.items():
+            if key.lower() == tag.lower():
+                self._children[key] = (value[0], text)
+                return
+        self._children[tag] = ({}, text)
+
+    def to_string(self):
+        head = "<{}{}>".format(self._tag, self._write_attributes(self._attrib))
+        children = self._write_children()
+        children = children.replace("\n", "\n  ")
+        tail = "</{}>".format(self._tag)
+        return "{}{}\n{}".format(head, children, tail)
+
+
+class Name(BaseFomod):
+    def __init__(self, attrib=None):
+        if attrib is None:
+            attrib = {}
+        super().__init__("moduleName", attrib)
+        self.name = ""
+
+    def to_string(self):
+        attrib = self._write_attributes(self._attrib)
+        return "<{0}{1}>{2}</{0}>".format(self._tag, attrib, self.name)
+
+    def validate(self, **callbacks):
+        super().validate(**callbacks)
+        if not self.name:
+            title = "Missing Installer Name"
+            msg = "This fomod does not have a name."
+            warn(title, msg, self)
+
+
+class Conditions(BaseFomod, HashableMapping):
+    def __init__(self, attrib=None):
+        if attrib is None:
+            attrib = {}
+        super().__init__("dependencies", attrib)
+        self._type = ConditionType.AND
+        self._map = OrderedDict()
 
     @property
     def type(self):
-        """
-        str or None:
-            The text type of this element. :py:class:`None` if no text is
-            allowed.
-        """
-        if not is_complex_element(self._schema_element):
-            return get_builtin_type(self._schema_element)
+        return self._type
 
-        base_exp = ("*[local-name()='simpleContent']/"
-                    "*[local-name()='extension'] | "
-                    "*[local-name()='simpleContent']/"
-                    "*[local-name()='restriction']")
-        try:
-            schema_type = get_complex_type(self._schema_element)
-            base_elem = schema_type.xpath(base_exp)[0]
-            return get_builtin_value(base_elem.get('base'))
-        except IndexError:
-            return None
+    @type.setter
+    def type(self, value):
+        if not isinstance(value, ConditionType):
+            raise ValueError("Value should be ConditionType.")
+        self._type = value
 
-    @property
-    def comment(self):
-        """
-        str:
-            The text of this element' comment.
-            If no comment exists when setting new text, a comment is created.
-            If this is set to :class:`None` the comment is deleted.
-        """
-        if self._comment is None:
-            return ""
-        return self._comment.text
+    def __getitem__(self, key):
+        return self._map[key]
 
-    @comment.setter
-    def comment(self, text):
-        if self._comment is None:
-            if text is None:
-                return
-            self.addprevious(etree.Comment(text))
+    def __setitem__(self, key, value):
+        if key is not None and not isinstance(key, (str, Conditions)):
+            raise TypeError("Key must be either None, string or Conditions.")
+        if key is None and not isinstance(value, str):
+            raise TypeError("Value for None key must be string.")
+        if isinstance(key, str) and not isinstance(value, (str, FileType)):
+            raise TypeError("Value for string key must be string or FileType.")
+        if isinstance(key, Conditions):
+            if value is not None:
+                raise TypeError("Value for Conditions key must be None.")
+            key._tag = "dependencies"
+        self._map[key] = value
 
-            # pylint: disable=attribute-defined-outside-init
-            self._comment = self.getprevious()
-        elif text is None:
-            if self.getparent() is not None:
-                self.getparent().remove(self._comment)
-            # if comment is at top level then just make it None,
-            # makes no difference
-            self._comment.text = None
-            # pylint: disable=attribute-defined-outside-init
-            # this is needed to lose the reference to the comment.
-            self._comment = None
-        else:
-            self._comment.text = text
+    def __delitem__(self, key):
+        del self._map[key]
 
-    @property
-    def doc(self):
-        """
-        str:
-            Returns the documentation text associated with this element
-            in the schema.
-        """
-        doc = get_doc_text(self._schema_element)
-        if doc is None:
-            return ""
-        return doc
+    def __iter__(self):
+        return iter(self._map)
 
-    @classmethod
-    def _valid_children_parse_order(cls, ord_elem):
-        """
-        Parses the *ord_elem* order indicator.
-        Needs to be separate from the main method to be recurrent.
-        Returns an OrderIndicator named tuple for the *ord_elem*.
-        """
-        child_list = []
+    def __len__(self):
+        return len(self._map)
 
-        for child in ord_elem:
-            child_tuple = None
-            if localname(child) == 'element':
-                child_tuple = ChildElement(child.get('name'),
-                                           get_max_occurs(child),
-                                           get_min_occurs(child))
-            elif localname(child) == 'any':
-                child_tuple = ChildElement(None,
-                                           get_max_occurs(child),
-                                           get_min_occurs(child))
-            elif localname(child) == 'group':
-                child_order = get_order_from_group(child)
-                child_tuple = cls._valid_children_parse_order(child_order)
-            else:
-                child_tuple = cls._valid_children_parse_order(child)
-            child_list.append(child_tuple)
+    def to_string(self):
+        children = ""
+        attrib = dict(self._attrib)
+        attrib["operator"] = self._type.value
+        head = "<{}{}>".format(self._tag, self._write_attributes(attrib))
+        for key, value in self._map.items():
+            if key is None:
+                child = '<gameDependency version="{}"/>'.format(value)
+            elif isinstance(key, Conditions):
+                if not key:
+                    continue
+                child = key.to_string()
+            elif isinstance(value, str):  # string key
+                tag = "flagDependency"
+                child = '<{} flag="{}" value="{}"/>'.format(tag, key, value)
+            elif isinstance(value, FileType):  # string key
+                tag = "fileDependency"
+                child = '<{} file="{}" state="{}"/>'.format(tag, key, value.value)
+            children += "\n" + child
+        children = children.replace("\n", "\n  ")
+        tail = "</{}>".format(self._tag)
+        return "{}{}\n{}".format(head, children, tail)
 
-        return OrderIndicator(localname(ord_elem), child_list,
-                              get_max_occurs(ord_elem),
-                              get_min_occurs(ord_elem))
-
-    def _find_valid_attribute(self, name):
-        """
-        Checks if possible attribute name is possible within the schema.
-        Returns the Attribute namedtuple for the possible attribute.
-        If there is no possible attribute, raises ValueError.
-        """
-        valid_attrs = self.valid_attributes()
-        possible_attr = None
-        for attr in valid_attrs:
-            if attr.name == name:
-                possible_attr = attr
-                break
-
-        if possible_attr is None:
-            raise ValueError("Attribute " + name +
-                             "is not allowed by the schema.")
-        else:
-            return possible_attr
-
-    def _required_children_choice(self, choice):
-        """
-        Returns the required children of a choice order indicator.
-        Always selects the first path in the choice, regardless of
-        the actual children.
-        It's probably a good idea to eventually try to make it choose
-        the correct path based on the existing children.
-        """
-        req_child = []
-        try:
-            selected_path = choice.element_list[0]
-        except IndexError:
-            return []
-
-        if isinstance(selected_path, OrderIndicator):
-            if selected_path.type == 'choice':
-                req_child.extend(self._required_children_choice(selected_path))
-            else:
-                req_child.extend(
-                    self._required_children_sequence(selected_path))
-        elif selected_path.min_occ > 0:
-            req_child.append((selected_path.tag, selected_path.min_occ))
-
-        for index, child in enumerate(req_child):
-            req_child[index] = (child[0], child[1] * choice.min_occ)
-
-        return req_child
-
-    def _required_children_sequence(self, sequence):
-        """
-        Returns the required children of a sequence order indicator.
-        """
-        req_child = []
-
-        for elem in sequence.element_list:
-            if isinstance(elem, OrderIndicator):
-                if elem.type == 'choice':
-                    req_child.extend(self._required_children_choice(elem))
+    def validate(self, **callbacks):
+        super().validate(**callbacks)
+        if not self:
+            title = "Empty Conditions"
+            msg = "This element should have at least one condition present."
+            warn(title, msg, self, critical=True)
+        for key, value in self._map.items():
+            if isinstance(key, Conditions):
+                if not key:
+                    title = "Empty Conditions"
+                    msg = (
+                        "This element is empty and will not be written to "
+                        "prevent errors."
+                    )
+                    warn(title, msg, key)
                 else:
-                    req_child.extend(self._required_children_sequence(elem))
-            elif elem.min_occ > 0:
-                req_child.append((elem.tag, elem.min_occ))
+                    key.validate(**callbacks)
+            elif key is None and not value:
+                title = "Empty Version Dependency"
+                msg = "This version dependency is empty " "and may not work correctly."
+                warn(title, msg, self)
+            elif isinstance(key, str):
+                if not key and isinstance(value, FileType):
+                    title = "Empty File Dependency"
+                    msg = (
+                        "This file dependency depends on no file, "
+                        "may not work correctly."
+                    )
+                    warn(title, msg, self)
+                elif self._tag == "moduleDependencies" and isinstance(value, str):
+                    title = "Useless Flags"
+                    msg = (
+                        "Flag {} shouldn't be used here "
+                        "since it can't have been set.".format(key)
+                    )
+                    warn(title, msg, self)
 
-        for index, child in enumerate(req_child):
-            req_child[index] = (child[0], child[1] * sequence.min_occ)
 
-        return req_child
+class Files(BaseFomod, HashableMapping):
+    def __init__(self, attrib=None):
+        if attrib is None:
+            attrib = {}
+        super().__init__("files", attrib)
+        self._file_list = []
 
-    def _find_possible_index(self, tag):
-        """
-        Tries to figure out if a child can be added to this element,
-        and if it can, what index it should be inserted at.
-
-        To this end, a shallow copy of this element's schema correspondence
-        and it's possible children is performed.
-        After, the same is done to this element and it's real children.
-        A test element with the child's tag is created.
-        This test element is then inserted at every possible position in the
-        copy of self (reversed order) until a valid position is found.
-        """
-        schema_elem = copy_schema(self._schema_element,
-                                  copy_level=1, rm_attr=True)
-        self_copy = copy_element(self, copy_level=1, rm_attr=True)
-
-        test_elem = etree.Element(tag)
-        schema = etree.XMLSchema(schema_elem)
-
-        self_copy.append(test_elem)
-        if schema.validate(self_copy):
-            return -1
-
-        for index in reversed(range(len(self_copy))):
-            self_copy.insert(index, test_elem)
-            if schema.validate(self_copy):
-                return index
-
-        return None
-
-    def _setup_new_element(self):
-        """
-        Sets up a newly created element (self) by adding the required
-        attributes and any required children (bypass validation checks).
-        """
-        for attr in self.required_attributes():
-            if attr.default is not None:
-                self.set(attr.name, attr.default)
-            elif (attr.restriction is not None and
-                  'enumeration' in attr.restriction.type):
-                self.set(attr.name, attr.restriction.enum_list[0].value)
-            else:
-                self.set(attr.name, '')
-
-        for elem in self.required_children():
-            for _ in range(0, elem[1]):
-                child = etree.SubElement(self, elem[0])
-                child._setup_new_element()
-
-    def _lookup_element(self):
-        """
-        Looks up the corresponding element/complexType in the corresponding
-        schema. Serves as base for all other lookups.
-        """
-        ancestor_list = list(self.iterancestors())[::-1]
-        ancestor_list.append(self)
-
-        # the current element will always be an actual element
-        # it will contain tag, minOccurs, maxOccurs, etc.
-        current_element = None
-
-        # the current type in schema
-        # in most cases it will actually be a complexType
-        current_type = self._schema
-
-        for elem in ancestor_list:
-            xpath_exp = "{*}element[@name=\"" + elem.tag + "\"]"
-            current_element = current_type.find(xpath_exp)
-
-            # this means there could order tags and/or be nested in a group tag
-            if current_element is None:
-                order_elem = get_order_from_type(current_type)
-                current_element = order_elem.find(".//" + xpath_exp)
-                if current_element is None:
-                    raise AssertionError("No element was found for this tag.")
-
-            current_type = get_complex_type(current_element)
-            if current_type is None:
-                current_type = current_element
-
-        return current_element
-
-    def _assert_valid(self):
-        """
-        Validates self and below to make
-        sure everything will work properly.
-        """
-        self_schema = copy_schema(self._schema_element, copy_level=-1)
-        self_copy = copy_element(self, copy_level=-1)
+    def __getitem__(self, key):
+        if not isinstance(key, str):
+            raise TypeError("Key must be string.")
+        if key.endswith(("/", "\\")) and key not in self:
+            key = key[:-1]
         try:
-            assert_valid(self_copy, self_schema)
-        except AssertionError as exc:
-            raise RuntimeError("This element is invalid with the following "
-                               "message: " + str(exc) + "\nCorrect this "
-                               "before using this API.")
+            return next(a.dst for a in self._file_list if a.src == key)
+        except StopIteration:
+            raise KeyError()
 
-    def _init(self):
-        """
-        Used to setup the class, instead of an __init__
-        since lxml doesn't let us use it.
-        """
-        # pylint: disable=attribute-defined-outside-init
-
-        # the schema this element belongs to
-        self._schema = FOMOD_SCHEMA_TREE
-
-        # the element that holds minOccurs, etc.
-        self._schema_element = self._lookup_element()
-
-        # the comment associated with this element.
-        # this comment always exists before the element.
-        self._comment = None
-        if (self.getprevious() is not None and
-                self.getprevious().tag is etree.Comment):
-            self._comment = self.getprevious()
-
-    def valid_attributes(self):
-        """
-        Gets all possible attributes of this element
-        along with some extra info in the
-        :py:class:`namedtuple <collections.namedtuple>`.
-
-        Returns:
-            list(Attribute):
-                A list of all possible attributes
-                this element can have. For more info refer to
-                :py:class:`Attribute`.
-        """
-        if not is_complex_element(self._schema_element):
-            return []
-
-        result_list = []
-        attr_exp = ("*[local-name()='attribute'] | "
-                    "*[local-name()='simpleContent']/"
-                    "*[local-name()='extension']/"
-                    "*[local-name()='attribute'] | "
-                    "*[local-name()='simpleContent']/"
-                    "*[local-name()='restriction']/"
-                    "*[local-name()='attribute']")
-
-        schema_type = get_complex_type(self._schema_element)
-        attr_list = schema_type.xpath(attr_exp)
-
-        attr_grs = schema_type.findall('{*}attributeGroup')
-        for attrgr_ref in attr_grs:
-            attrgr_elem = get_attributegroup_elem(attrgr_ref)
-            attr_list.extend(attrgr_elem.xpath(attr_exp))
-
-        for attr in attr_list:
-            name = attr.get('name')
-            doc = get_doc_text(attr)
-            default = attr.get('default')
-            use = attr.get('use', 'optional')
-            attr_type = attr.get('type')
-            restriction = None
-
-            if is_builtin_attribute(attr):
-                attr_type = get_builtin_value(attr_type)
-            else:
-                simple_type = get_attribute_type(attr)
-                # restriction is guaranteed
-                rest_elem = simple_type.find('{*}restriction')
-
-                attr_type = get_builtin_value(rest_elem.get('base'))
-                if attr_type is None:
-                    attr_type = rest_elem.get('base')
-                rest_type = ''
-                enum_list = []
-
-                for child in rest_elem:
-                    doc_child = get_doc_text(child)
-                    value = child.get('value')
-
-                    rest_tuple = AttrRestElement(value, doc_child)
-
-                    if localname(child) == 'enumeration':
-                        if 'enumeration' not in rest_type:
-                            rest_type += 'enumeration '
-                        enum_list.append(rest_tuple)
-
-                restriction = AttrRestriction(rest_type, enum_list, None,
-                                              None, None, None,
-                                              None, None, None,
-                                              None, None, None)
-
-            result_list.append(Attribute(name, doc, default, attr_type,
-                                         use, restriction))
-
-        return result_list
-
-    def required_attributes(self):
-        """
-        Utility method that returns only attributes that are required
-        by this element.
-
-        Returns:
-            list(Attribute): The list of required attributes.
-        """
-        valid_attrib = self.valid_attributes()
-        return [attr for attr in valid_attrib if attr.use == 'required']
-
-    def get_attribute(self, name):
-        """
-        Args:
-            name (str): The attribute's name.
-
-        Returns:
-            The attribute's value.
-
-        Raises:
-            ValueError: If the attribute is not allowed by the schema.
-        """
-        self._assert_valid()
-
-        existing_attr = self.get(name)
-        if existing_attr is not None:
-            return existing_attr
-
-        default_attr = self._find_valid_attribute(name)
-        if default_attr.default is not None:
-            return default_attr.default
-        return ""
-
-    def set_attribute(self, name, value):
-        """
-        Args:
-            name (str): The attribute's name.
-            value (str): The attribute's value.
-
-        Raises:
-            ValueError: If the attribute or value is not allowed by the schema.
-        """
-        self._assert_valid()
-
-        possible_attr = self._find_valid_attribute(name)
-
-        if value is None:
-            if possible_attr.use != 'required':
-                try:
-                    del self.attrib[name]
-                    return
-                except KeyError:
-                    raise ValueError("Attribute {} is not present in this "
-                                     "element.".format(name))
-            else:
-                raise ValueError("Attribute {} cannot be removed from this "
-                                 "element.".format(name))
-
-        value = str(value)
-
-        # it is possible to simplify all of this into the second portion
-        # but I believe it's in the user's interest to keep granularity
-        if possible_attr.restriction is not None:
-            if 'enumeration' in possible_attr.restriction.type:
-                enum_list = possible_attr.restriction.enum_list
-                if value not in [enum.value for enum in enum_list]:
-                    raise ValueError("{} is not allowed by this "
-                                     "attribute's restrictions.".format(value))
-
-        self_schema = copy_schema(self._schema_element)
-        self_copy = copy_element(self)
-        self_copy.set(name, value)
+    # trailing slash -> folder, else file
+    def __setitem__(self, key, value):
+        if not isinstance(key, str):
+            raise TypeError("Key must be string.")
+        if not isinstance(value, str):
+            raise TypeError("Value must be string.")
+        folder = False
+        if key.endswith(("/", "\\")) and key not in self:
+            key = key[:-1]
+            folder = True
         try:
-            assert_valid(self_copy, self_schema)
-        except AssertionError:
-            raise ValueError("value is not of an acceptable type.")
-        self.set(name, value)
-
-    def get_root(self):
-        """
-        Returns the :class:`~pyfomod.tree.Root` object of this tree.
-        """
-        return get_root(self)
-
-    def children(self):
-        """
-        Returns a list of this element's children.
-
-        Users should prefer this instead of lxml's ``list(element)``
-        since this method ignores the associated comments.
-
-        Returns:
-            list(FomodElement): A list of this element's children.
-        """
-        return list(self.iterchildren(tag=etree.Element))
-
-    def get_child(self, tag, create=False, **attrs):
-        """
-        Returns the first child of this element with matching *tag*. The search
-        can be further refined be specifying attributes as key-value pairs. An
-        example would be::
-
-            self.get_child('tag', attribute1="value1", attribute2="value2")
-
-        If no matching child is found and *create* is ``False``, ``None`` is
-        returned. If *create* is ``True`` then a new child is added with *tag*
-        and any attributes specified in *attrs* and then returned.
-        """
-        search_exp = tag
-        for key, value in attrs.items():
-            search_exp += '[@{}="{}"]'.format(key, value)
-        child = self.find(search_exp)
-        if child is None and create:
-            child = self.add_child(tag)
-            for attr, value in attrs.items():
-                child.set_attribute(attr, value)
-        return child
-
-    def get_children(self, tag, **attrs):
-        """
-        Finds and returns all children of this element with matching *tag*. The
-        search can be further refined be specifying attributes as key-value
-        pairs. An example would be::
-
-            self.get_children('tag', attribute1="value1", attribute2="value2")
-        """
-        search_exp = tag
-        for key, value in attrs.items():
-            search_exp += '[@{}="{}"]'.format(key, value)
-        return self.findall(search_exp)
-
-    def valid_children(self):
-        """
-        Gets all the possible, valid children for this element.
-
-        Returns:
-            OrderIndicator or None:
-                This :py:class:`namedtuple <collections.namedtuple>` contains
-                the valid children for this element. For more information on
-                its structure refer to :py:class:`OrderIndicator`.
-                `None` if this element has no valid children.
-        """
-        order_elem = get_order_from_elem(self._schema_element)
-        if order_elem is None:
-            return None
-
-        return self._valid_children_parse_order(order_elem)
-
-    def required_children(self):
-        """
-        Returns a list with the required children by this element.
-        Currently, this assumes no children exist and whenever there
-        is a choice to be made it always chooses the first path.
-
-        Returns:
-            list(tuple(string, int)): A list of tuples as
-                (child tag, child minimum occurences).
-        """
-        valid_children = self.valid_children()
-        if valid_children is None:
-            return []
-        elif valid_children.type == 'choice':
-            return self._required_children_choice(valid_children)
-        return self._required_children_sequence(valid_children)
-
-    def can_add_child(self, child):
-        """
-        Checks if a given child can be possibly added to this element.
-
-        Args:
-            child (str or FomodElement): The tag or the actual child to add.
-
-        Returns:
-            bool: Whether the child can be added or not.
-
-        Raises:
-            TypeError: If child is neither a string nor FomodElement.
-
-        Warning:
-            This method and its corresponding :func:`~FomodElement.add_child`
-            can both possibly be performance heavy on elements with large
-            numbers of children.
-
-            It is therefore recommended to use this pattern::
-
-                try:
-                    element.add_child(child)
-                except ValueError:
-                    pass
-
-            Instead of::
-
-                if element.can_add_child(child):
-                    element.add_child(child)
-        """
-        self._assert_valid()
-
-        tag = ""
-        if isinstance(child, str):
-            tag = child
-        elif isinstance(child, FomodElement):
-            tag = child.tag
-            parent = child.getparent()
-            if parent is not None and not parent.can_remove_child(child):
-                return False
-        else:
-            raise TypeError("Only tags (string) and elements (FomodElement)"
-                            " are accepted as arguments.")
-
-        if self._find_possible_index(tag) is None:
-            return False
-        return True
-
-    def add_child(self, child):
-        """
-        Adds a child to this element.
-
-        If *child* is a :class:`FomodElement` and it has a parent element then
-        it is first removed using :func:`~FomodElement.remove_child`.
-
-        Args:
-            child (str or FomodElement): The tag or the actual child to add.
-
-        Raises:
-            TypeError: If child is neither a string nor FomodElement.
-            ValueError: If the child cannot be added to this element.
-
-        Returns:
-            FomodElement: The added child.
-        """
-        self._assert_valid()
-
-        tag = ""
-        child_is_tag = False
-        if isinstance(child, str):
-            tag = child
-            child_is_tag = True
-        elif isinstance(child, FomodElement):
-            tag = child.tag
-        else:
-            raise TypeError("Only tags (string) and elements (FomodElement)"
-                            " are accepted as arguments.")
-
-        index = self._find_possible_index(tag)
-        if index is None:
-            raise ValueError("Child" + tag + "can't be added to this element.")
-
-        if child_is_tag:
-            child = etree.SubElement(self, tag)
-            child._setup_new_element()
-        else:
-            parent = child.getparent()
-            if parent is not None:
-                parent.remove_child(child)
-        self.insert(index, child)
-        if child._comment is not None:
-            self.insert(index, child._comment)
-
-        return child
-
-    def can_remove_child(self, child):
-        """
-        Checks if a given child can be removed while maintaining validity.
-
-        Args:
-            child (FomodElement): The child element to remove.
-
-        Returns:
-            bool: Whether the child can be removed.
-
-        Raises:
-            TypeError: If child is not a FomodElement.
-            ValueError: If child is not a child of this element.
-        """
-        self._assert_valid()
-
-        if not isinstance(child, FomodElement):
-            raise TypeError("child argument must be a FomodElement.")
-        elif child not in self:
-            raise ValueError("child argument is not a child of this element.")
-
-        index = self.index(child)
-        schema_elem = copy_schema(self._schema_element,
-                                  copy_level=1, rm_attr=True)
-        self_copy = copy_element(self, copy_level=1)
-        self_copy.remove(self_copy[index])
-        schema = etree.XMLSchema(schema_elem)
-        return schema.validate(self_copy)
-
-    def remove_child(self, child):
-        """
-        Removes a child from this element.
-
-        Args:
-            child (FomodElement): The child element to remove.
-
-        Raises:
-            TypeError: If child is not a FomodElement.
-            ValueError: If child cannot be removed from this element.
-        """
-        self._assert_valid()
-
-        if self.can_remove_child(child):
-            if child._comment is not None:
-                self.remove(child._comment)
-            self.remove(child)
-        else:
-            raise ValueError("Child cannot be removed by schema restrictions.")
-
-    def can_replace_child(self, old_child, new_child):
-        """
-        Checks if a given child can be replaced while maintaining validity.
-
-        Args:
-            old_child (FomodElement): The child element to replace.
-            new_child (FomodElement): The child element to insert.
-
-        Returns:
-            bool: Whether the child can be replaced.
-
-        Raises:
-            TypeError: If either argument is not a FomodElement.
-            ValueError: If old_child is not a child of this element.
-        """
-        self._assert_valid()
-
-        if not (isinstance(old_child, FomodElement) or
-                isinstance(new_child, FomodElement)):
-            raise TypeError("child arguments must be a FomodElement.")
-        elif old_child not in self:
-            raise ValueError("child argument is not a child of this element.")
-
-        parent = new_child.getparent()
-        if parent is not None and not parent.can_remove_child(new_child):
-            return False
-        index = self.index(old_child)
-        schema_elem = copy_schema(self._schema_element,
-                                  copy_level=1, rm_attr=True)
-        self_copy = copy_element(self, copy_level=1)
-        self_copy.replace(self_copy[index], etree.Element(new_child.tag))
-        schema = etree.XMLSchema(schema_elem)
-        return schema.validate(self_copy)
-
-    def replace_child(self, old_child, new_child):
-        """
-        Replaces *old_child* with *new_child*.
-
-        If *new_child* is a :class:`FomodElement` and it has a parent element
-        then it is first removed using :func:`~FomodElement.remove_child`.
-
-        Args:
-            old_child (FomodElement): The child element to replace.
-            new_child (FomodElement): The child element to insert.
-
-        Raises:
-            TypeError: If either argument is not a FomodElement.
-            ValueError: If old_child can't be replaced by new_child.
-        """
-        self._assert_valid()
-
-        if self.can_replace_child(old_child, new_child):
-            parent = new_child.getparent()
-            if parent is not None:
-                parent.remove_child(new_child)
-            index = self.index(old_child)
-            if new_child._comment is not None:
-                self.insert(index, new_child._comment)
-            if old_child._comment is not None:
-                self.remove(old_child._comment)
-            self.replace(old_child, new_child)
-        else:
-            raise ValueError("Child cannot be replaced.")
-
-    def can_reorder_child(self, child):
-        """
-        Checks if a given child can be reordered.
-
-        This is only possible if there are at least two children with the
-        same tag as ``child``.
-
-        Args:
-            child (FomodElement): The child element to reorder.
-
-        Returns:
-            bool: Whether the child can be reordered.
-
-        Raises:
-            ValueError: If child is not a child of this element.
-        """
-        self._assert_valid()
-
-        if child not in self:
-            raise ValueError("child is not a child of this element.")
-
-        child_list = self.findall(child.tag)
-        if len(child_list) < 2:
-            return False
-        return True
-
-    def reorder_child(self, child, move):
-        """
-        Reorders ``child`` by the ``move`` amount.
-
-        If ``move`` is negative the child will be moved back and if positive
-        it will be moved forward. Any attached comments will also be reordered.
-
-        Passing *0* to ``move`` will do nothing.
-
-        Args:
-            child (FomodElement): The child element to reorder.
-            move (int): The amount to move the child by.
-
-        Raises:
-            ValueError: If child can't be reordered.
-                See also :func:`~FomodElement.can_reorder_child`.
-
-        Example:
-            >>> parent
-            <Element parent at 0x000000000001>
-            >>> pprint(list(parent))
-            [<Element child at 0x0000002>,
-             <Element child at 0x0000003>,
-             <Element child at 0x0000004>,
-             <Element child at 0x0000005>,
-             <Element child at 0x0000006>]
-            >>> parent.reorder_child(parent[2], 2)
-            >>> pprint(list(parent))
-            [<Element child at 0x0000002>,
-             <Element child at 0x0000003>,
-             <Element child at 0x0000005>,
-             <Element child at 0x0000006>,
-             <Element child at 0x0000004>]
-            >>> parent.reorder_child(parent[2], -1)
-            >>> pprint(list(parent))
-            [<Element child at 0x0000002>,
-             <Element child at 0x0000005>,
-             <Element child at 0x0000003>,
-             <Element child at 0x0000004>,
-             <Element child at 0x0000006>]
-        """
-        self._assert_valid()
-
-        if not self.can_reorder_child(child):
-            raise ValueError("child cannot be reordered.")
-
-        index = self.children().index(child)
-        if move > 0:
-            move += 1
-        change = index + move
-        if change <= 0:
-            change = 0
-        elif change >= len(self.children()):
-            change = len(self)
-        else:
-            indexed_child = self.children()[change]
-            if indexed_child._comment is not None:
-                change = self.index(indexed_child._comment)
+            next(a for a in self._file_list if a.src == key).dst = value
+        except StopIteration:
+            if folder:
+                new = File(tag="folder")
             else:
-                change = self.index(indexed_child)
+                new = File(tag="file")
+            new.src = key
+            new.dst = value
+            self._file_list.append(new)
 
-        self.insert(change, child)
-        if child._comment is not None:
-            self.insert(self.index(child), child._comment)
+    def __delitem__(self, key):
+        if not isinstance(key, str):
+            raise TypeError("Key must be string.")
+        if key.endswith(("/", "\\")) and key not in self:
+            key = key[:-1]
+        try:
+            value = next(a for a in self._file_list if a.src == key)
+            self._file_list.remove(value)
+        except StopIteration:
+            raise KeyError()
 
-    def __copy__(self):
-        return self.__deepcopy__(None)
+    def __iter__(self):
+        for item in self._file_list:
+            source = item.src
+            if item._tag == "folder" and not source.endswith(("/", "\\")):
+                source = "{}/".format(source)
+            yield source
 
-    def __deepcopy__(self, memo):
-        self._assert_valid()
+    def __len__(self):
+        return len(self._file_list)
 
-        parent = self.getparent()
-        if parent is None:
-            copy_elem = self.makeelement(self.tag,
-                                         attrib=self.attrib,
-                                         nsmap=self.nsmap)
+    def __contains__(self, key):
+        try:
+            next(a for a in self._file_list if a.src == key)
+            return True
+        except StopIteration:
+            return False
+
+    def to_string(self):
+        children = ""
+        head = "<{}{}>".format(self._tag, self._write_attributes(self._attrib))
+        for child in self._file_list:
+            children += "\n" + child.to_string()
+        children = children.replace("\n", "\n  ")
+        tail = "</{}>".format(self._tag)
+        return "{}{}\n{}".format(head, children, tail)
+
+    def validate(self, **callbacks):
+        super().validate(**callbacks)
+        for child in self._file_list:
+            child.validate(**callbacks)
+
+
+class File(BaseFomod):
+    def __init__(self, tag="", attrib=None):
+        if attrib is None:
+            attrib = {}
+        super().__init__(tag, attrib)
+        self.src = ""
+        self.dst = ""
+
+    def to_string(self):
+        attrib = dict(self._attrib)
+        attrib["source"] = self.src
+        if self.dst:
+            attrib["destination"] = self.dst
+        elif "destination" in attrib:
+            del attrib["destination"]
+        return "<{}{}/>".format(self._tag, self._write_attributes(attrib))
+
+    def validate(self, **callbacks):
+        super().validate(**callbacks)
+        if not self.src:
+            title = "Empty Source Field"
+            msg = "No source specified, nothing will be installed."
+            warn(title, msg, self)
+
+
+class Pages(BaseFomod, HashableSequence):
+    def __init__(self, attrib=None):
+        if attrib is None:
+            attrib = {}
+        super().__init__("installSteps", attrib)
+        self._page_list = []
+        self._order = Order.EXPLICIT
+
+    @property
+    def order(self):
+        return self._order
+
+    @order.setter
+    def order(self, value):
+        if not isinstance(value, Order):
+            raise ValueError("Value should be Order.")
+        self._order = value
+
+    def __getitem__(self, key):
+        return self._page_list[key]
+
+    def __setitem__(self, key, value):
+        if not isinstance(value, Page):
+            raise ValueError("Value should be Page.")
+        self._page_list[key] = value
+
+    def __delitem__(self, key):
+        del self._page_list[key]
+
+    def __len__(self):
+        return len(self._page_list)
+
+    def insert(self, key, value):
+        if not isinstance(value, Page):
+            raise ValueError("Value should be Page.")
+        self._page_list.insert(key, value)
+
+    def to_string(self):
+        children = ""
+        attrib = dict(self._attrib)
+        attrib["order"] = self._order.value
+        head = "<{}{}>".format(self._tag, self._write_attributes(attrib))
+        for child in self._page_list:
+            if child:
+                children += "\n" + child.to_string()
+        children = children.replace("\n", "\n  ")
+        tail = "</{}>".format(self._tag)
+        return "{}{}\n{}".format(head, children, tail)
+
+    def validate(self, **callbacks):
+        super().validate(**callbacks)
+        for page in self._page_list:
+            if page:
+                page.validate(**callbacks)
+            else:
+                title = "Empty Page"
+                msg = "This page is empty and will not be written to prevent errors."
+                warn(title, msg, page)
+
+
+class Page(BaseFomod, HashableSequence):
+    def __init__(self, attrib=None):
+        if attrib is None:
+            attrib = {}
+        super().__init__("installStep", attrib)
+        self._group_list = []
+        self._name = ""
+        self._conditions = Conditions()
+        self._conditions._tag = "visible"
+        self._order = Order.EXPLICIT
+
+    @property
+    def name(self):
+        return self._name
+
+    @name.setter
+    def name(self, value):
+        if not isinstance(value, str):
+            raise ValueError("Value should be string.")
+        self._name = value
+
+    @property
+    def conditions(self):
+        return self._conditions
+
+    @conditions.setter
+    def conditions(self, value):
+        if not isinstance(value, Conditions):
+            raise ValueError("Value should be Conditions.")
+        self._conditions = value
+        self._conditions._tag = "visible"
+
+    @property
+    def order(self):
+        return self._order
+
+    @order.setter
+    def order(self, value):
+        if not isinstance(value, Order):
+            raise ValueError("Value should be Order.")
+        self._order = value
+
+    def __getitem__(self, key):
+        return self._group_list[key]
+
+    def __setitem__(self, key, value):
+        if not isinstance(value, Group):
+            raise ValueError("Value should be Group.")
+        self._group_list[key] = value
+
+    def __delitem__(self, key):
+        del self._group_list[key]
+
+    def __len__(self):
+        return len(self._group_list)
+
+    def insert(self, key, value):
+        if not isinstance(value, Group):
+            raise ValueError("Value should be Group.")
+        self._group_list.insert(key, value)
+
+    def to_string(self):
+        children = ""
+        grp_tag = "optionalFileGroups"
+        attrib = dict(self._attrib)
+        attrib["name"] = self._name
+        grp_attrib = {"order": self._order.value}
+        head = "<{}{}>".format(self._tag, self._write_attributes(attrib))
+        grp_head = "<{}{}>".format(grp_tag, self._write_attributes(grp_attrib))
+        grp_tail = "</{}>".format(grp_tag)
+        tail = "</{}>".format(self._tag)
+        if self._conditions:
+            children += "\n" + self._conditions.to_string()
+        children += "\n" + grp_head
+        for child in self._group_list:
+            if child:
+                children += "\n  " + child.to_string().replace("\n", "\n  ")
+        children += "\n" + grp_tail
+        children = children.replace("\n", "\n  ")
+        return "{}{}\n{}".format(head, children, tail)
+
+    def validate(self, **callbacks):
+        super().validate(**callbacks)
+        if self._conditions:
+            self._conditions.validate(**callbacks)
+        for group in self._group_list:
+            if group:
+                group.validate(**callbacks)
+            else:
+                title = "Empty Group"
+                msg = "This group is empty and will not be written to prevent errors."
+                warn(title, msg, group)
+        if not self._name:
+            title = "Empty Page Name"
+            msg = "This page has no name."
+            warn(title, msg, self)
+
+
+class Group(BaseFomod, HashableSequence):
+    def __init__(self, attrib=None):
+        if attrib is None:
+            attrib = {}
+        super().__init__("group", attrib)
+        self._option_list = []
+        self._name = ""
+        self._order = Order.EXPLICIT
+        self._type = GroupType.ATLEASTONE
+
+    @property
+    def name(self):
+        return self._name
+
+    @name.setter
+    def name(self, value):
+        if not isinstance(value, str):
+            raise ValueError("Value should be string.")
+        self._name = value
+
+    @property
+    def order(self):
+        return self._order
+
+    @order.setter
+    def order(self, value):
+        if not isinstance(value, Order):
+            raise ValueError("Value should be Order.")
+        self._order = value
+
+    @property
+    def type(self):
+        return self._type
+
+    @type.setter
+    def type(self, value):
+        if not isinstance(value, GroupType):
+            raise ValueError("Value should be GroupType.")
+        self._type = value
+
+    def __getitem__(self, key):
+        return self._option_list[key]
+
+    def __setitem__(self, key, value):
+        if not isinstance(value, Option):
+            raise ValueError("Value should be Option.")
+        self._option_list[key] = value
+
+    def __delitem__(self, key):
+        del self._option_list[key]
+
+    def __len__(self):
+        return len(self._option_list)
+
+    def insert(self, key, value):
+        if not isinstance(value, Option):
+            raise ValueError("Value should be Option.")
+        self._option_list.insert(key, value)
+
+    def to_string(self):
+        children = ""
+        opt_tag = "plugins"
+        attrib = dict(self._attrib)
+        attrib["name"] = self._name
+        attrib["type"] = self._type.value
+        opt_attrib = {"order": self._order.value}
+        head = "<{}{}>".format(self._tag, self._write_attributes(attrib))
+        opt_head = "<{}{}>".format(opt_tag, self._write_attributes(opt_attrib))
+        opt_tail = "</{}>".format(opt_tag)
+        tail = "</{}>".format(self._tag)
+        children += "\n" + opt_head
+        for child in self._option_list:
+            children += "\n  " + child.to_string().replace("\n", "\n  ")
+        children += "\n" + opt_tail
+        children = children.replace("\n", "\n  ")
+        return "{}{}\n{}".format(head, children, tail)
+
+    def validate(self, **callbacks):
+        super().validate(**callbacks)
+        for option in self._option_list:
+            option.validate(**callbacks)
+        if not self._name:
+            title = "Empty Group Name"
+            msg = "This group has no name."
+            warn(title, msg, self)
+
+
+class Option(BaseFomod):
+    def __init__(self, attrib=None):
+        if attrib is None:
+            attrib = {}
+        super().__init__("plugin", attrib)
+        self._name = ""
+        self._description = ""
+        self._image = ""
+        self._files = Files()
+        self._files._tag = "files"
+        self._flags = Flags()
+        self._type = OptionType.OPTIONAL
+
+    @property
+    def name(self):
+        return self._name
+
+    @name.setter
+    def name(self, value):
+        if not isinstance(value, str):
+            raise ValueError("Value should be string.")
+        self._name = value
+
+    @property
+    def description(self):
+        return self._description
+
+    @description.setter
+    def description(self, value):
+        if not isinstance(value, str):
+            raise ValueError("Value should be string.")
+        self._description = value
+
+    @property
+    def image(self):
+        return self._image
+
+    @image.setter
+    def image(self, value):
+        if not isinstance(value, str):
+            raise ValueError("Value should be string.")
+        self._image = value
+
+    @property
+    def files(self):
+        return self._files
+
+    @files.setter
+    def files(self, value):
+        if not isinstance(value, Files):
+            raise ValueError("Value should be Files.")
+        self._files = value
+        self._files._tag = "files"
+
+    @property
+    def flags(self):
+        return self._flags
+
+    @flags.setter
+    def flags(self, value):
+        if not isinstance(value, Flags):
+            raise ValueError("Value should be Flags.")
+        self._flags = value
+
+    @property
+    def type(self):
+        return self._type
+
+    @type.setter
+    def type(self, value):
+        if not isinstance(value, (Type, OptionType)):
+            raise ValueError("Value should be OptionType or Type.")
+        self._type = value
+
+    def to_string(self):
+        children = ""
+        attrib = dict(self._attrib)
+        attrib["name"] = self.name
+        head = "<{}{}>".format(self._tag, self._write_attributes(attrib))
+        children += "\n"
+        children += "<description>{}</description>".format(self.description)
+        if self.image:
+            children += "\n" + '<image path="{}"/>'.format(self.image)
+        if self.files:
+            children += "\n" + self.files.to_string()
+        if self.flags:
+            children += "\n" + self.flags.to_string()
+        children += "\n" + "<typeDescriptor>"
+        if isinstance(self.type, OptionType):
+            children += "\n  " + '<type name="{}"/>'.format(self.type.value)
         else:
-            copy_elem = etree.SubElement(parent,
-                                         self.tag,
-                                         attrib=self.attrib,
-                                         nsmap=self.nsmap)
-            parent.remove(copy_elem)
+            children += "\n  " + self.type.to_string()
+        children += "\n" + "</typeDescriptor>"
+        children = children.replace("\n", "\n  ")
+        tail = "</{}>".format(self._tag)
+        return "{}{}\n{}".format(head, children, tail)
 
-        if self._comment is not None:
-            copy_elem.comment = self._comment.text
-        copy_elem.text = self.text
-        copy_elem.tail = self.tail
+    def validate(self, **callbacks):
+        super().validate(**callbacks)
+        if not self.name:
+            title = "Empty Option Name"
+            msg = "This option has no name."
+            warn(title, msg, self)
+        if not self.description:
+            title = "Empty Option Description"
+            msg = "This option has no description."
+            warn(title, msg, self)
+        if not self.files and not self.flags:
+            title = "Option Does Nothing"
+            msg = "This option installs no files and sets no flags."
+            warn(title, msg, self)
+        if self.files:
+            self.files.validate(**callbacks)
+        if self.flags:
+            self.flags.validate(**callbacks)
+        if isinstance(self.type, Type):
+            self.type.validate(**callbacks)
 
-        for child in self:
-            copy_elem.append(deepcopy(child))
 
-        return copy_elem
+class Flags(BaseFomod, HashableMapping):
+    def __init__(self, attrib=None):
+        if attrib is None:
+            attrib = {}
+        super().__init__("conditionFlags", attrib)
+        self._map = OrderedDict()
+
+    def __getitem__(self, key):
+        return self._map[key]
+
+    def __setitem__(self, key, value):
+        if not isinstance(key, str):
+            raise TypeError("Key must be string.")
+        if not isinstance(value, str):
+            raise TypeError("Value must be string.")
+        self._map[key] = value
+
+    def __delitem__(self, key):
+        del self._map[key]
+
+    def __iter__(self):
+        return iter(self._map)
+
+    def __len__(self):
+        return len(self._map)
+
+    def to_string(self):
+        children = ""
+        head = "<{}{}>".format(self._tag, self._write_attributes(self._attrib))
+        for key, value in self._map.items():
+            children += "\n" + '<flag name="{}">{}</flag>'.format(key, value)
+        children = children.replace("\n", "\n  ")
+        tail = "</{}>".format(self._tag)
+        return "{}{}\n{}".format(head, children, tail)
+
+
+class Type(BaseFomod, HashableMapping):
+    def __init__(self, attrib=None):
+        if attrib is None:
+            attrib = {}
+        super().__init__("dependencyType", attrib)
+        self._default = OptionType.OPTIONAL
+        self._map = OrderedDict()
+
+    @property
+    def default(self):
+        return self._default
+
+    @default.setter
+    def default(self, value):
+        if not isinstance(value, OptionType):
+            raise ValueError("Value should be OptionType.")
+        self._default = value
+
+    def __getitem__(self, key):
+        return self._map[key]
+
+    def __setitem__(self, key, value):
+        if not isinstance(key, Conditions):
+            raise TypeError("Key must be Conditions.")
+        if not isinstance(value, OptionType):
+            raise TypeError("Value must be OptionType.")
+        key._tag = "dependencies"
+        self._map[key] = value
+
+    def __delitem__(self, key):
+        del self._map[key]
+
+    def __iter__(self):
+        return iter(self._map)
+
+    def __len__(self):
+        return len(self._map)
+
+    def to_string(self):
+        children = ""
+        head = "<{}{}>".format(self._tag, self._write_attributes(self._attrib))
+        children += "\n"
+        children += '<defaultType name="{}"/>'.format(self.default.value)
+        children += "\n" + "<patterns>"
+        for key, value in self._map.items():
+            children += "\n  " + "<pattern>"
+            children += "\n    " + key.to_string().replace("\n", "\n    ")
+            children += "\n    " + '<type name="{}"/>'.format(value.value)
+            children += "\n  " + "</pattern>"
+        children += "\n" + "</patterns>"
+        children = children.replace("\n", "\n  ")
+        tail = "</{}>".format(self._tag)
+        return "{}{}\n{}".format(head, children, tail)
+
+    def validate(self, **callbacks):
+        super().validate(**callbacks)
+        if not self:
+            title = "Empty Type Descriptor"
+            msg = "This type descriptor is empty and will never set a type."
+            warn(title, msg, self, critical=True)
+        for key in self._map:
+            key.validate(**callbacks)
+
+
+class FilePatterns(BaseFomod, HashableMapping):
+    def __init__(self, attrib=None):
+        if attrib is None:
+            attrib = {}
+        super().__init__("conditionalFileInstalls", attrib)
+        self._map = OrderedDict()
+
+    def __getitem__(self, key):
+        return self._map[key]
+
+    def __setitem__(self, key, value):
+        if not isinstance(key, Conditions):
+            raise TypeError("Key must be Conditions.")
+        if not isinstance(value, Files):
+            raise TypeError("Value must be Files.")
+        key._tag = "dependencies"
+        value._tag = "files"
+        self._map[key] = value
+
+    def __delitem__(self, key):
+        del self._map[key]
+
+    def __iter__(self):
+        return iter(self._map)
+
+    def __len__(self):
+        return len(self._map)
+
+    def to_string(self):
+        children = ""
+        head = "<{}{}>".format(self._tag, self._write_attributes(self._attrib))
+        children += "\n" + "<patterns>"
+        for key, value in self._map.items():
+            children += "\n  " + "<pattern>"
+            children += "\n    " + key.to_string().replace("\n", "\n    ")
+            children += "\n    " + value.to_string().replace("\n", "\n    ")
+            children += "\n  " + "</pattern>"
+        children += "\n" + "</patterns>"
+        children = children.replace("\n", "\n  ")
+        tail = "</{}>".format(self._tag)
+        return "{}{}\n{}".format(head, children, tail)
+
+    def validate(self, **callbacks):
+        super().validate(**callbacks)
+        for key, value in self._map.items():
+            key.validate(**callbacks)
+            value.validate(**callbacks)

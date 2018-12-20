@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 # Copyright 2016 Daniel Nunes
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,25 +12,49 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
-The main API module. Should contain everything the user needs.
-"""
+"""A high-level fomod library written in Python."""
 
-from .installer import Installer, MissingDependency
-from .parser import from_string, new, parse, to_string, write
-from .validation import (EmptyInstError, EmptySourceError, ErrorChecker,
-                         FlagLabelMismatchError, FlagValueMismatchError,
-                         MissingFileError, MissingFolderError,
-                         MissingImageError, NoAuthorError, NoNameError,
-                         NoVersionError, NoWebsiteError, UnusedFilesError,
-                         assert_valid, check_for_errors, validate)
+__version__ = "0.3.3"
 
-__all__ = ['assert_valid', 'validate', 'from_string',
-           'to_string', 'parse', 'write', 'new',
-           'ErrorChecker', 'check_for_errors',
-           'NoNameError', 'NoAuthorError', 'NoVersionError',
-           'NoWebsiteError', 'EmptyInstError',
-           'EmptySourceError', 'UnusedFilesError',
-           'MissingFolderError', 'MissingFileError',
-           'MissingImageError', 'FlagLabelMismatchError',
-           'FlagValueMismatchError', 'Installer', 'MissingDependency']
+__all__ = [
+    "Conditions",
+    "ConditionType",
+    "FilePatterns",
+    "Files",
+    "FileType",
+    "Flags",
+    "Group",
+    "GroupType",
+    "Info",
+    "Option",
+    "OptionType",
+    "Order",
+    "Page",
+    "Pages",
+    "Root",
+    "Type",
+    "warn",
+    "parse",
+    "write",
+]
+
+from .base import (
+    Conditions,
+    ConditionType,
+    FilePatterns,
+    Files,
+    FileType,
+    Flags,
+    Group,
+    GroupType,
+    Info,
+    Option,
+    OptionType,
+    Order,
+    Page,
+    Pages,
+    Root,
+    Type,
+    warn,
+)
+from .parser import parse, write

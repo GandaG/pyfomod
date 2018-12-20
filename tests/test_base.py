@@ -1,1058 +1,723 @@
-import re
+import textwrap
+from collections import OrderedDict
 
-from lxml import etree
-from pyfomod import base, validation
-
-import mock
 import pytest
-from helpers import ElementTest, assert_elem_eq, make_element
+from pyfomod import base
 
 
-def test_copy_element():
-    test_func = base.copy_element
-
-    elem_orig = etree.fromstring('<elem a="1">text</elem>')
-    assert_elem_eq(test_func(elem_orig), elem_orig)
-
-    elem_orig = etree.fromstring('<elem a="1">text<child/>tail</elem>')
-    assert_elem_eq(test_func(elem_orig, -1), elem_orig)
+def test_warn():
+    with pytest.warns(base.ValidationWarning, match="Title - Msg"):
+        base.warn("Title", "Msg", None)
+    with pytest.warns(base.CriticalWarning):
+        base.warn("", "", None, critical=True)
 
 
-class Test_FomodElement:
-    def test_max_occurences(self):
-        test_func = base.FomodElement.max_occurences.fget
-        elem = ElementTest()
-        elem._schema_element = etree.Element('element', maxOccurs='5')
-        assert test_func(elem) == 5
+class Test_HashableSequence:
+    class Seq(base.HashableSequence):
+        def __init__(self):
+            self.list = []
 
-    def test_min_occurences(self):
-        test_func = base.FomodElement.min_occurences.fget
-        elem = ElementTest()
-        elem._schema_element = etree.Element('element', minOccurs='5')
-        assert test_func(elem) == 5
+        def __getitem__(self, key):
+            return self.list[key]
+
+        def __setitem__(self, key, value):
+            self.list[key] = value
+
+        def __delitem__(self, key):
+            del self.list[key]
+
+        def __len__(self):
+            return len(self.list)
+
+        def insert(self, index, value):
+            self.list.insert(index, value)
+
+    def setup_method(self):
+        self.seq = self.Seq()
+        self.seq.extend([1, 2, 3])
+
+    def test_iter(self):
+        assert list(self.seq) == [1, 2, 3]
+
+    def test_contains(self):
+        assert 2 in self.seq
+
+    def test_reversed(self):
+        assert list(reversed(self.seq)) == [3, 2, 1]
+
+    def test_index(self):
+        assert self.seq.index(2) == 1
+
+    def test_count(self):
+        assert self.seq.count(2) == 1
+
+    def test_append(self):
+        self.seq.append(4)
+        assert 4 in self.seq
+        assert list(self.seq) == [1, 2, 3, 4]
+
+    def test_clear(self):
+        self.seq.clear()
+        assert not self.seq
+
+    def test_reverse(self):
+        self.seq.reverse()
+        assert list(self.seq) == [3, 2, 1]
+
+    def test_extend(self):
+        self.seq.extend([4, 5])
+        assert list(self.seq) == [1, 2, 3, 4, 5]
+
+    def test_pop(self):
+        assert self.seq.pop() == 3
+        assert list(self.seq) == [1, 2]
+
+    def test_remove(self):
+        self.seq.remove(2)
+        assert list(self.seq) == [1, 3]
+
+    def test_iadd(self):
+        self.seq += [4, 5]
+        assert list(self.seq) == [1, 2, 3, 4, 5]
+
+
+class Test_HashableMapping:
+    class Hash(base.HashableMapping):
+        def __init__(self):
+            self.dict = {}
+
+        def __getitem__(self, key):
+            return self.dict[key]
+
+        def __setitem__(self, key, value):
+            self.dict[key] = value
+
+        def __delitem__(self, key):
+            del self.dict[key]
+
+        def __iter__(self):
+            return iter(self.dict)
+
+        def __len__(self):
+            return len(self.dict)
+
+    def setup_method(self):
+        self.hash = self.Hash()
+        self.hash.dict.update({1: "1", 2: "2", 3: "3"})
+
+    def test_contains(self):
+        assert 2 in self.hash.dict
+
+    def test_keys(self):
+        assert list(self.hash.keys()) == [1, 2, 3]
+
+    def test_items(self):
+        assert list(self.hash.items()) == [(1, "1"), (2, "2"), (3, "3")]
+
+    def test_values(self):
+        assert list(self.hash.values()) == ["1", "2", "3"]
+
+    def test_get(self):
+        assert self.hash.get(2) == "2"
+        assert self.hash.get(4) is None
+
+    def test_pop(self):
+        assert self.hash.pop(2) == "2"
+        assert dict(self.hash) == {1: "1", 3: "3"}
+
+    def test_popitem(self):
+        self.hash.popitem()
+        assert dict(self.hash) == {2: "2", 3: "3"}
+
+    def test_clear(self):
+        self.hash.clear()
+        assert dict(self.hash) == {}
+
+    def test_update(self):
+        self.hash.update({4: "4"})
+        assert dict(self.hash) == {1: "1", 2: "2", 3: "3", 4: "4"}
+
+    def test_setdefault(self):
+        assert self.hash.setdefault(2) == "2"
+        assert self.hash.setdefault(4, "4") == "4"
+
+
+class Test_BaseFomod:
+    def test_write_attributes(self):
+        attrib = {"boop": "beep", "value": "1"}
+        expected = ' boop="beep" value="1"'
+        assert base.BaseFomod._write_attributes(attrib) == expected
+
+    def test_write_children(self):
+        children = OrderedDict(
+            [("first", ({}, "text")), ("second", ({"beep": "boop"}, ""))]
+        )
+        expected = '\n<first>text</first>\n<second beep="boop"/>'
+        test = base.BaseFomod("", {})
+        test._children = children
+        assert test._write_children() == expected
+
+
+class Test_Root:
+    def setup_method(self):
+        self.root = base.Root()
+
+    def test_name(self):
+        self.root.name = "beep"
+        assert self.root.name == "beep"
+        assert self.root._name.name == "beep"
+
+    def test_author(self):
+        self.root.author = "boop"
+        assert self.root.author == "boop"
+        assert "Author" in self.root._info._children
+        assert self.root._info._children["Author"] == ({}, "boop")
+
+    def test_version(self):
+        self.root.version = "boop"
+        assert self.root.version == "boop"
+        assert "Version" in self.root._info._children
+        assert self.root._info._children["Version"] == ({}, "boop")
+
+    def test_description(self):
+        self.root.description = "boop"
+        assert self.root.description == "boop"
+        assert "Description" in self.root._info._children
+        assert self.root._info._children["Description"] == ({}, "boop")
+
+    def test_website(self):
+        self.root.website = "boop"
+        assert self.root.website == "boop"
+        assert "Website" in self.root._info._children
+        assert self.root._info._children["Website"] == ({}, "boop")
+
+    def test_conditions(self):
+        test = base.Conditions()
+        self.root.conditions = test
+        assert self.root.conditions is test
+        assert self.root._conditions is test
+        assert test._tag == "moduleDependencies"
+
+    def test_files(self):
+        test = base.Files()
+        self.root.files = test
+        assert self.root.files is test
+        assert self.root._files is test
+        assert test._tag == "requiredInstallFiles"
+
+    def test_pages(self):
+        test = base.Pages()
+        self.root.pages = test
+        assert self.root.pages is test
+        assert self.root._pages is test
+
+    def test_file_patterns(self):
+        test = base.FilePatterns()
+        self.root.file_patterns = test
+        assert self.root.file_patterns is test
+        assert self.root._file_patterns is test
+
+    def test_to_string(self):
+        self.root._children = OrderedDict([("child", ({"beep": "boop"}, ""))])
+        self.root.name = "Name"
+        expected = textwrap.dedent(
+            """\
+            <config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" \
+xsi:noNamespaceSchemaLocation="http://qconsulting.ca/fo3/ModConfig5.0.xsd">
+              <moduleName>Name</moduleName>
+              <child beep="boop"/>
+            </config>"""
+        )
+        assert self.root.to_string() == expected
+
+    def test_validate(self):
+        warn_msg = "Empty Installer - This fomod is empty, nothing will be installed"
+        with pytest.warns(base.ValidationWarning, match=warn_msg):
+            self.root.validate()
+        page = base.Page()
+        page.conditions["boop"] = "beep"
+        page.append(base.Group())
+        self.root.pages.append(page)
+        warn_msg = 'Impossible Flags - The flag "boop" is never created or set'
+        with pytest.warns(base.ValidationWarning, match=warn_msg):
+            self.root.validate()
+
+
+class Test_Info:
+    def setup_method(self):
+        self.info = base.Info()
+
+    def test_get_text(self):
+        self.info._children["Key"] = ({}, "boop")
+        assert self.info.get_text("key") == "boop"
+        assert self.info.get_text("Key") == "boop"
+
+    def test_set_text(self):
+        self.info._children["Key"] = ({}, "boop")
+        self.info.set_text("Key", "beep")
+        assert self.info._children == {"Key": ({}, "beep")}
+        self.info.set_text("New", "beepity")
+        assert self.info._children["New"] == ({}, "beepity")
+
+    def test_to_string(self):
+        self.info._children["Author"] = ({}, "None")
+        expected = textwrap.dedent(
+            """\
+                <fomod>
+                  <Author>None</Author>
+                </fomod>"""
+        )
+        assert self.info.to_string() == expected
+
+
+class Test_Name:
+    def setup_method(self):
+        self.name = base.Name()
+
+    def test_to_string(self):
+        self.name._attrib = {"first": "second"}
+        self.name.name = "Name"
+        expected = '<moduleName first="second">Name</moduleName>'
+        assert self.name.to_string() == expected
+
+    def test_validate(self):
+        warn_msg = "Missing Installer Name - This fomod does not have a name."
+        with pytest.warns(base.ValidationWarning, match=warn_msg):
+            self.name.validate()
+
+
+class Test_Conditions:
+    def setup_method(self):
+        self.cond = base.Conditions()
 
     def test_type(self):
-        test_func = base.FomodElement.type.fget
-
-        elem = ElementTest()
-        elem._schema_element = etree.fromstring("<element name='a'>"
-                                                "<complexType>"
-                                                "<all/>"
-                                                "</complexType>"
-                                                "</element>")
-        assert test_func(elem) is None
-
-        elem._schema_element = etree.fromstring("<element name='a' "
-                                                "type='a:string'/>")
-        assert test_func(elem) == 'string'
-
-        elem._schema_element = etree.fromstring("<element name='a'>"
-                                                "<complexType>"
-                                                "<simpleContent>"
-                                                "<extension base='a:string'/>"
-                                                "</simpleContent>"
-                                                "</complexType>"
-                                                "</element>")
-        assert test_func(elem) == 'string'
-
-    def test_comment(self):
-        test_func = base.FomodElement.comment.fget
-        elem = ElementTest()
-        elem._comment = None
-        assert test_func(elem) == ""
-
-        elem._comment = etree.Comment('comment')
-        assert test_func(elem) == "comment"
-
-        test_func = base.FomodElement.comment.fset
-
-        parent = ElementTest()
-        parent.append(elem)
-        elem._comment = None
-        test_func(elem, None)
-        assert elem._comment is None
-
-        elem._comment = etree.Comment('comment')
-        parent.insert(0, elem._comment)
-        test_func(elem, None)
-        assert elem._comment is None
-
-        elem._comment = None
-        test_func(elem, "comment")
-        assert elem._comment.text == "comment"
-
-        elem._comment = etree.Comment('comment')
-        test_func(elem, "test")
-        assert elem._comment.text == "test"
-
-    def test_doc(self):
-        test_func = base.FomodElement.doc.fget
-
-        elem = ElementTest()
-        elem._schema_element = etree.fromstring("<element name='a'>"
-                                                "<annotation>"
-                                                "<documentation>"
-                                                "doc text"
-                                                "</documentation>"
-                                                "</annotation>"
-                                                "</element>")
-        assert test_func(elem) == 'doc text'
-
-        elem._schema_element = etree.Element('element', name='a')
-        assert test_func(elem) == ''
-
-    def test_valid_children_parse_order(self):
-        test_func = base.FomodElement._valid_children_parse_order
-        schema = etree.fromstring("<root>"
-                                  "<sequence maxOccurs='3'>"
-                                  "<element name='a' type='xs:decimal'/>"
-                                  "<choice minOccurs='0'>"
-                                  "<group ref='b'/>"
-                                  "</choice>"
-                                  "<any minOccurs='2' maxOccurs='10'/>"
-                                  "</sequence>"
-                                  "<group name='b'>"
-                                  "<all>"
-                                  "<element name='c' type='xs:string'/>"
-                                  "</all>"
-                                  "</group>"
-                                  "</root>")
-        all_ord = base.OrderIndicator('all',
-                                      [base.ChildElement('c', 1, 1)],
-                                      1, 1)
-        choice_ord = base.OrderIndicator('choice', [all_ord], 1, 0)
-        expected = base.OrderIndicator('sequence',
-                                       [base.ChildElement('a', 1, 1),
-                                        choice_ord,
-                                        base.ChildElement(None, 10, 2)],
-                                       3, 1)
-        assert test_func(schema[0]) == expected
-
-    def test_find_valid_attribute(self):
-        test_func = base.FomodElement._find_valid_attribute
-
-        elem = ElementTest()
-        attr = base.Attribute('MachineVersion', None, None,
-                              'string', 'optional', None)
-        elem.valid_attributes = lambda: [attr]
-        assert test_func(elem, 'MachineVersion') == attr
-
-        elem.valid_attributes = lambda: []
-        with pytest.raises(ValueError):
-            test_func(elem, 'MachineVersion')
-
-    def test_required_children_choice(self):
-        test_func = base.FomodElement._required_children_choice
-
-        elem = ElementTest()
-        test_choice = base.OrderIndicator('choice', [], 2, 2)
-        assert test_func(elem, test_choice) == []
-
-        test_child = base.ChildElement('child', 2, 2)
-        test_choice = base.OrderIndicator('choice', [test_child], 2, 2)
-        assert test_func(elem, test_choice) == [('child', 4)]
-
-        test_choice2 = mock.Mock(spec=base.OrderIndicator)
-        test_choice2.type = 'choice'
-        test_choice = base.OrderIndicator('choice', [test_choice2], 2, 2)
-        elem._required_children_choice = lambda _: [('child', 2)]
-        assert test_func(elem, test_choice) == [('child', 4)]
-
-        test_sequence = mock.Mock(spec=base.OrderIndicator)
-        test_sequence.type = 'sequence'
-        test_choice = base.OrderIndicator('choice', [test_sequence], 2, 2)
-        elem._required_children_sequence = lambda _: [('child', 2)]
-        assert test_func(elem, test_choice) == [('child', 4)]
-
-    def test_required_children_sequence(self):
-        test_func = base.FomodElement._required_children_sequence
-
-        elem = ElementTest()
-        test_sequence = base.OrderIndicator('sequence', [], 2, 2)
-        assert test_func(elem, test_sequence) == []
-
-        test_child = mock.Mock(spec=base.ChildElement)
-        test_child.tag = 'child'
-        test_child.min_occ = 5
-        test_sequence = base.OrderIndicator('sequence', [test_child], 2, 2)
-        assert test_func(elem, test_sequence) == [('child', 10)]
-
-        test_choice = mock.Mock(spec=base.OrderIndicator)
-        test_choice.type = 'choice'
-        test_sequence = base.OrderIndicator('sequence', [test_choice], 2, 2)
-        elem._required_children_choice = lambda _: [('child', 2)]
-        assert test_func(elem, test_sequence) == [('child', 4)]
-
-        test_sequence = mock.Mock(spec=base.OrderIndicator)
-        test_sequence.type = 'sequence'
-        test_sequence = base.OrderIndicator('sequence', [test_sequence],
-                                            2, 2)
-        elem._required_children_sequence = lambda _: [('child', 2)]
-        assert test_func(elem, test_sequence) == [('child', 4)]
-
-    @mock.patch('pyfomod.base.copy_element')
-    @mock.patch('pyfomod.base.copy_schema')
-    def test_find_possible_index(self, mock_schema, mock_copy):
-        test_func = base.FomodElement._find_possible_index
-
-        # not valid
-        test_tag = 'test'
-        schema = etree.fromstring("<schema "
-                                  "xmlns='http://www.w3.org/2001/XMLSchema'>"
-                                  "<element name='elem'>"
-                                  "<complexType/>"
-                                  "</element>"
-                                  "</schema>")
-        elem = etree.Element('elem')
-        mock_self = mock.MagicMock(spec=base.FomodElement)
-        mock_self._schema_element = mock.Mock(spec=ElementTest)
-        mock_copy.return_value = elem
-        mock_schema.return_value = schema
-        assert test_func(mock_self, test_tag) is None
-
-        # valid in last
-        schema = etree.fromstring("<schema "
-                                  "xmlns='http://www.w3.org/2001/XMLSchema'>"
-                                  "<element name='elem'>"
-                                  "<complexType>"
-                                  "<sequence>"
-                                  "<element name='test' minOccurs='0'>"
-                                  "<complexType/>"
-                                  "</element>"
-                                  "</sequence>"
-                                  "</complexType>"
-                                  "</element>"
-                                  "</schema>")
-        elem = etree.Element('elem')
-        mock_copy.return_value = elem
-        mock_schema.return_value = schema
-        assert test_func(mock_self, test_tag) == -1
-
-        # valid in index 1
-        schema = etree.fromstring("<schema "
-                                  "xmlns='http://www.w3.org/2001/XMLSchema'>"
-                                  "<element name='elem'>"
-                                  "<complexType>"
-                                  "<sequence>"
-                                  "<element name='child1'/>"
-                                  "<element name='child2' minOccurs='0'/>"
-                                  "<element name='child3'/>"
-                                  "</sequence>"
-                                  "</complexType>"
-                                  "</element>"
-                                  "</schema>")
-        elem = etree.Element('elem')
-        etree.SubElement(elem, 'child1')
-        etree.SubElement(elem, 'child3')
-        test_tag = 'child2'
-        mock_copy.return_value = elem
-        mock_schema.return_value = schema
-        assert test_func(mock_self, test_tag) == 1
-
-    @mock.patch('lxml.etree.SubElement')
-    def test_setup_new_element(self, mock_subelem):
-        test_func = base.FomodElement._setup_new_element
-
-        elem = ElementTest()
-        elem.set_attribute = elem.set
-
-        mock_subelem.side_effect = lambda x, y: mock.Mock() \
-            if x.append(etree.Element(y)) is None else mock.Mock()
-
-        attr_rest = base.AttrRestriction('enumeration',
-                                         [base.AttrRestElement('enum',
-                                                               None)],
-                                         *[None] * 10)
-        req_attr = [base.Attribute('attr_default',
-                                   None,
-                                   'default',
-                                   None,
-                                   'required',
-                                   None),
-                    base.Attribute('attr_rest',
-                                   None,
-                                   None,
-                                   None,
-                                   'required',
-                                   attr_rest),
-                    base.Attribute('attr_none',
-                                   None,
-                                   None,
-                                   None,
-                                   'required',
-                                   None)]
-        elem.required_attributes = lambda: req_attr
-        elem.required_children = lambda: [('child1', 1),
-                                          ('child2', 7),
-                                          ('child3', 2)]
-        test_func(elem)
-        assert elem.get('attr_default') == 'default'
-        assert elem.get('attr_rest') == 'enum'
-        assert elem.get('attr_none') == ''
-        assert len(elem.findall('child1')) == 1
-        assert len(elem.findall('child2')) == 7
-        assert len(elem.findall('child3')) == 2
-
-    def test_lookup_element(self):
-        test_func = base.FomodElement._lookup_element
-
-        schema = etree.fromstring("<xs:schema xmlns:xs='http://www"
-                                  ".w3.org/2001/XMLSchema'>"
-                                  "<xs:element name='a'>"
-                                  "<xs:complexType>"
-                                  "<xs:all>"
-                                  "<xs:element name='b' type='bt'/>"
-                                  "</xs:all>"
-                                  "</xs:complexType>"
-                                  "</xs:element>"
-                                  "<xs:complexType name='bt'>"
-                                  "<xs:choice>"
-                                  "<xs:element name='c' type='ct'/>"
-                                  "</xs:choice>"
-                                  "</xs:complexType>"
-                                  "<xs:complexType name='ct'>"
-                                  "<xs:group ref='cg'/>"
-                                  "</xs:complexType>"
-                                  "<xs:group name='cg'>"
-                                  "<xs:sequence>"
-                                  "<xs:element name='d' type='xs:string'/>"
-                                  "</xs:sequence>"
-                                  "</xs:group>"
-                                  "</xs:schema>")
-        elem_a = make_element('a')
-        elem_a._schema = schema
-        elem_b = make_element('b')
-        elem_b._schema = schema
-        elem_a.append(elem_b)
-        elem_c = make_element('c')
-        elem_c._schema = schema
-        elem_b.append(elem_c)
-        elem_d = make_element('d')
-        elem_d._schema = schema
-        elem_c.append(elem_d)
-
-        assert_elem_eq(test_func(elem_a), schema[0])
-        assert_elem_eq(test_func(elem_b), schema[0][0][0][0])
-        assert_elem_eq(test_func(elem_c), schema[1][0][0])
-        assert_elem_eq(test_func(elem_d), schema[3][0][0])
-
-    def test_assert_valid(self):
-        test_func = base.FomodElement._assert_valid
-
-        schema = etree.fromstring("<xs:schema xmlns:xs='http://www"
-                                  ".w3.org/2001/XMLSchema'>"
-                                  "<xs:element name='a' type='xs:integer'/>"
-                                  "</xs:schema>")
-        elem = make_element('a', 'text')
-        elem._schema_element = schema[0]
-        with pytest.raises(RuntimeError) as exc_info:
-            test_func(elem)
-
-        assert str(exc_info.value) == ("This element is invalid with the "
-                                       "following message: Element 'a': 'text'"
-                                       " is not a valid value of the atomic "
-                                       "type 'xs:integer'.\nCorrect this "
-                                       "before using this API.")
-
-    def test_init(self):
-        test_func = base.FomodElement._init
-
-        elem = ElementTest()
-        elem._lookup_element = lambda: None
-        elem_c = etree.Comment('elem')
-        elem.addprevious(elem_c)
-
-        test_func(elem)
-        assert elem._comment is elem_c
-        assert elem._schema_element is None
-        assert elem._schema is validation.FOMOD_SCHEMA_TREE
-
-    def test_valid_attributes(self):
-        test_func = base.FomodElement.valid_attributes
-
-        elem = ElementTest()
-        elem._assert_valid = lambda: None
-
-        # simple element - no attributes
-        schema = etree.fromstring("<element name='a' type='xs:string'/>")
-        elem._schema_element = schema
-        assert test_func(elem) == []
-
-        # a simple string attribute
-        schema = etree.fromstring("<element name='a'>"
-                                  "<complexType>"
-                                  "<attribute name='attr' type='xs:string'/>"
-                                  "</complexType>"
-                                  "</element>")
-        expected = base.Attribute("attr", None, None,
-                                  "string", "optional", None)
-        elem._schema_element = schema
-        assert test_func(elem) == [expected]
-
-        # same as above vis attributeGroup
-        schema = etree.fromstring("<schema>"
-                                  "<element name='a'>"
-                                  "<complexType>"
-                                  "<attributeGroup ref='attrgr'/>"
-                                  "</complexType>"
-                                  "</element>"
-                                  "<attributeGroup name='attrgr'>"
-                                  "<attribute name='attr' type='xs:string'/>"
-                                  "</attributeGroup>"
-                                  "</schema>")
-        expected = base.Attribute("attr", None, None,
-                                  "string", "optional", None)
-        elem._schema_element = schema[0]
-        assert test_func(elem) == [expected]
-
-        # restrictions
-        schema = etree.fromstring("<element name='a'>"
-                                  "<complexType>"
-                                  "<attribute name='attr'>"
-                                  "<annotation>"
-                                  "<documentation>"
-                                  "Attribute documentation."
-                                  "</documentation>"
-                                  "</annotation>"
-                                  "<simpleType>"
-                                  "<restriction base='xs:string'>"
-                                  "<enumeration value='aa'>"
-                                  "<annotation>"
-                                  "<documentation>"
-                                  "Enumeration documentation."
-                                  "</documentation>"
-                                  "</annotation>"
-                                  "</enumeration>"
-                                  "<enumeration value='bb'/>"
-                                  "</restriction>"
-                                  "</simpleType>"
-                                  "</attribute>"
-                                  "<attribute name='child'>"
-                                  "<simpleType>"
-                                  "<restriction base='other_attr'/>"
-                                  "</simpleType>"
-                                  "</attribute>"
-                                  "</complexType>"
-                                  "</element>")
-        rest_list = [base.AttrRestElement('aa',
-                                          "Enumeration documentation."),
-                     base.AttrRestElement('bb', None)]
-        attr_rest = base.AttrRestriction('enumeration ', rest_list,
-                                         None, None, None, None, None,
-                                         None, None, None, None, None)
-        child_rest = base.AttrRestriction('', [],
-                                          None, None, None, None, None,
-                                          None, None, None, None, None)
-        expected = [base.Attribute('attr', "Attribute documentation.",
-                                   None, 'string', 'optional', attr_rest),
-                    base.Attribute('child', None, None, 'other_attr',
-                                   'optional', child_rest)]
-        elem._schema_element = schema
-        assert test_func(elem) == expected
-
-    def test_required_attributes(self):
-        test_func = base.FomodElement.required_attributes
-
-        attr1 = base.Attribute("attr1", None, None,
-                               "string", "optional", None)
-        attr2 = base.Attribute("attr2", None, None,
-                               "string", "required", None)
-        attr3 = base.Attribute("attr3", None, None,
-                               "string", "optional", None)
-        attr4 = base.Attribute("attr4", None, None,
-                               "string", "required", None)
-
-        elem = ElementTest()
-        elem.valid_attributes = lambda: [attr1, attr2, attr3, attr4]
-        assert test_func(elem) == [attr2, attr4]
-
-    def test_get_attribute(self):
-        test_func = base.FomodElement.get_attribute
-
-        attr1 = base.Attribute("attr1", None, None,
-                               "string", "optional", None)
-        attr2 = base.Attribute("attr2", None, "default",
-                               "string", "required", None)
-
-        elem = ElementTest()
-        elem._assert_valid = lambda: None
-        elem._find_valid_attribute = lambda x: attr1 if x == 'attr1' else attr2
-        elem.set('attr3', 'existing')
-
-        assert test_func(elem, 'attr1') == ''
-        assert test_func(elem, 'attr2') == 'default'
-        assert test_func(elem, 'attr3') == 'existing'
-
-    def test_set_attribute(self):
-        test_func = base.FomodElement.set_attribute
-        ElementTest._find_valid_attribute = \
-            base.FomodElement._find_valid_attribute
-        ElementTest.valid_attributes = base.FomodElement.valid_attributes
-        ElementTest._assert_valid = base.FomodElement._assert_valid
-
-        # normal
-        schema = etree.fromstring("<xs:schema xmlns:xs='http://www"
-                                  ".w3.org/2001/XMLSchema'>"
-                                  "<xs:element name='a'>"
-                                  "<xs:complexType>"
-                                  "<xs:attribute name='b' type='xs:integer'/>"
-                                  "</xs:complexType>"
-                                  "</xs:element>"
-                                  "</xs:schema>")
-        elem = make_element('a')
-        elem._schema_element = schema[0]
-        test_func(elem, 'b', 1)
-        assert elem.get('b') == '1'
-
-        # wrong type
-        schema = etree.fromstring("<xs:schema xmlns:xs='http://www"
-                                  ".w3.org/2001/XMLSchema'>"
-                                  "<xs:element name='a'>"
-                                  "<xs:complexType>"
-                                  "<xs:attribute name='b' type='xs:integer'/>"
-                                  "</xs:complexType>"
-                                  "</xs:element>"
-                                  "</xs:schema>")
-        elem = make_element('a')
-        elem._schema_element = schema[0]
-        with pytest.raises(ValueError):
-            test_func(elem, 'b', 'boop')
-        assert elem.get('b') is None
-
-        # restriction
-        schema = etree.fromstring("<xs:schema xmlns:xs='http://www"
-                                  ".w3.org/2001/XMLSchema'>"
-                                  "<xs:element name='a'>"
-                                  "<xs:complexType>"
-                                  "<xs:attribute name='b'>"
-                                  "<xs:simpleType>"
-                                  "<xs:restriction base='xs:string'>"
-                                  "<xs:enumeration value='doop'/>"
-                                  "</xs:restriction>"
-                                  "</xs:simpleType>"
-                                  "</xs:attribute>"
-                                  "</xs:complexType>"
-                                  "</xs:element>"
-                                  "</xs:schema>")
-        elem = make_element('a')
-        elem._schema_element = schema[0]
-        with pytest.raises(ValueError):
-            test_func(elem, 'b', 'boop')
-        assert elem.get('b') is None
-
-        # removal
-        schema = etree.fromstring("<xs:schema xmlns:xs='http://www"
-                                  ".w3.org/2001/XMLSchema'>"
-                                  "<xs:element name='a'>"
-                                  "<xs:complexType>"
-                                  "<xs:attribute name='b' type='xs:integer' "
-                                  "use='optional'/>"
-                                  "</xs:complexType>"
-                                  "</xs:element>"
-                                  "</xs:schema>")
-        elem = make_element('a')
-        elem._schema_element = schema[0]
-        elem.set('b', '1')
-        test_func(elem, 'b', None)
-        assert elem.get('b') is None
-
-        # removal non existing
-        schema = etree.fromstring("<xs:schema xmlns:xs='http://www"
-                                  ".w3.org/2001/XMLSchema'>"
-                                  "<xs:element name='a'>"
-                                  "<xs:complexType>"
-                                  "<xs:attribute name='b' type='xs:integer' "
-                                  "use='optional'/>"
-                                  "</xs:complexType>"
-                                  "</xs:element>"
-                                  "</xs:schema>")
-        elem = make_element('a')
-        elem._schema_element = schema[0]
-        with pytest.raises(ValueError):
-            test_func(elem, 'b', None)
-
-        # removal required
-        schema = etree.fromstring("<xs:schema xmlns:xs='http://www"
-                                  ".w3.org/2001/XMLSchema'>"
-                                  "<xs:element name='a'>"
-                                  "<xs:complexType>"
-                                  "<xs:attribute name='b' type='xs:integer' "
-                                  "use='required'/>"
-                                  "</xs:complexType>"
-                                  "</xs:element>"
-                                  "</xs:schema>")
-        elem = make_element('a')
-        elem._schema_element = schema[0]
-        elem.set('b', '1')
-        with pytest.raises(ValueError):
-            test_func(elem, 'b', None)
-
-    def test_get_root(self):
-        test_func = base.FomodElement.get_root
-
-        with mock.patch('pyfomod.base.get_root') as mock_root:
-            test_func(0)
-            mock_root.assert_called_once_with(0)
-
-    def test_children(self):
-        test_func = base.FomodElement.children
-
-        root = ElementTest()
-        elem1 = etree.SubElement(root, 'a')
-        elem2 = etree.SubElement(root, 'b')
-        elem3 = etree.SubElement(root, 'c')
-
-        assert test_func(root) == [elem1, elem2, elem3]
-
-    def test_get_child(self):
-        test_func = base.FomodElement.get_child
-        ElementTest.set_attribute = base.FomodElement.set
-
-        root = ElementTest()
-        root.add_child = lambda x: etree.SubElement(root, x)
-        elem1 = etree.SubElement(root, 'a')
-        elem2 = etree.SubElement(root, 'a', attr1='a')
-        elem3 = etree.SubElement(root, 'a', attr1='a', attr2='b')
-        elem4 = etree.SubElement(root, 'b')
-
-        assert test_func(root, 'a') is elem1
-        assert test_func(root, 'a', attr1='a') is elem2
-        assert test_func(root, 'a', attr1='a', attr2='b') is elem3
-        assert test_func(root, 'b') is elem4
-
-        elem5 = test_func(root, 'c', create=True, attr1="7")
-        assert elem5.tag == 'c'
-        assert elem5.get('attr1') == '7'
-        assert len(root) == 5
-        assert root[-1] is elem5
-
-    def test_get_children(self):
-        test_func = base.FomodElement.get_children
-
-        mock_elem = mock.Mock(spec=base.FomodElement)
-        test_func(mock_elem, 'a', attr1='0', attr2='1337')
-        expected_regex = r'a(\[@attr1="0"\]\[@attr2="1337"\]|' \
-                         '\[@attr2="1337"\]\[@attr1="0"\])'
-        assert re.match(expected_regex, mock_elem.findall.call_args[0][0])
-
-    def test_valid_children(self):
-        test_func = base.FomodElement.valid_children
-
-        elem = ElementTest()
-        elem._assert_valid = lambda: None
-
-        elem._schema_element = etree.fromstring("<element name='a' "
-                                                "type='xs:string'/>")
-        assert test_func(elem) is None
-
-        elem._schema_element = etree.fromstring("<element name='a'>"
-                                                "<complexType>"
-                                                "<all/>"
-                                                "</complexType>"
-                                                "</element>")
-        elem._valid_children_parse_order = lambda x: 'success' \
-            if assert_elem_eq(x, elem._schema_element[0][0]) is None \
-            else 'failure'
-        assert test_func(elem) == 'success'
-
-    def test_required_children(self):
-        test_func = base.FomodElement.required_children
-
-        elem = ElementTest()
-        elem.valid_children = lambda: None
-        assert test_func(elem) == []
-
-        test_choice = mock.Mock(spec=base.OrderIndicator)
-        test_choice.type = 'choice'
-        elem.valid_children = lambda: test_choice
-        elem._required_children_choice = lambda x: [('child', 2)] \
-            if x is test_choice else 'failure'
-        assert test_func(elem) == [('child', 2)]
-
-        test_sequence = mock.Mock(spec=base.OrderIndicator)
-        test_sequence.type = 'sequence'
-        elem.valid_children = lambda: test_sequence
-        elem._required_children_sequence = lambda x: [('child', 2)] \
-            if x is test_sequence else 'failure'
-        assert test_func(elem) == [('child', 2)]
-
-    def test_can_add_child(self):
-        test_func = base.FomodElement.can_add_child
-
-        elem = ElementTest()
-        elem._assert_valid = lambda: None
-
-        with pytest.raises(TypeError):
-            # the second arg is any type other than string or FomodElement
-            test_func(elem, 0)
-
-        elem._find_possible_index = lambda _: None
-        assert not test_func(elem, 'tag')
-        elem._find_possible_index = lambda _: 'success'
-        assert test_func(elem, 'tag')
-
-        elem._find_possible_index = lambda _: None
-        mock_parent = mock.Mock(spec=base.FomodElement)
-        mock_child = mock.Mock(spec=base.FomodElement)
-        mock_child.getparent.return_value = mock_parent
-        mock_parent.can_remove_child.return_value = False
-        assert not test_func(elem, mock_child)
-        elem._find_possible_index = lambda _: 'success'
-        assert not test_func(elem, mock_child)
-
-        elem._find_possible_index = lambda _: None
-        mock_child.getparent.return_value = None
-        assert not test_func(elem, mock_child)
-        elem._find_possible_index = lambda _: 'success'
-        assert test_func(elem, mock_child)
-
-    def test_add_child(self):
-        test_func = base.FomodElement.add_child
-
-        elem = ElementTest()
-        elem._assert_valid = lambda: None
-
-        with pytest.raises(TypeError):
-            test_func(elem, 0)
-
-        elem._find_possible_index = lambda _: None
-        mock_child = mock.Mock(spec=base.FomodElement)
-        mock_child.tag = 'a'
-        with pytest.raises(ValueError):
-            test_func(elem, mock_child)
-
-        with mock.patch('lxml.etree.SubElement') as subelem_patch:
-            elem_newchild = ElementTest()
-            elem_newchildcomment = etree.Comment('comment')
-
-            subelem_patch.side_effect = lambda x, y: elem_newchild \
-                if x.append(elem_newchild) is None else 'failure'
-            elem._find_possible_index = lambda _: 0
-            elem_newchild._setup_new_element = lambda: None
-            elem_newchild._comment = elem_newchildcomment
-
-            test_func(elem, 'tag')
-            assert list(elem) == [elem_newchildcomment, elem_newchild]
-
-        with mock.patch('pyfomod.base.isinstance') as inst_patch:
-            elem = ElementTest()
-            elem._assert_valid = lambda: None
-            elem._find_possible_index = lambda _: 0
-
-            inst_patch.side_effect = lambda _, y: y is base.FomodElement
-            elem_child = ElementTest()
-            elem_child._comment = None
-
-            test_func(elem, elem_child)
-            assert list(elem) == [elem_child]
-
-            elem_parent = ElementTest()
-            elem_parent.append(elem_child)
-            elem_parent.remove_child = elem_parent.remove
-
-            test_func(elem, elem_child)
-            assert list(elem_parent) == []
-            assert list(elem) == [elem_child]
-
-    @mock.patch('pyfomod.base.copy_element')
-    @mock.patch('pyfomod.base.copy_schema')
-    def test_can_remove_child(self, mock_schema, mock_copy):
-        test_func = base.FomodElement.can_remove_child
-
-        # errors
-        with pytest.raises(TypeError):
-            # second arg is anything but FomodElement
-            mock_self = mock.Mock(spec=base.FomodElement)
-            test_func(mock_self, 0)
-        mock_self = mock.MagicMock(spec=base.FomodElement)
-        mock_self.__iter__.return_value = []
-        mock_child = mock.MagicMock(spec=base.FomodElement)
-        with pytest.raises(ValueError):
-            test_func(mock_self, mock_child)
-
-        # normal
-        schema = etree.fromstring("<xs:schema xmlns:xs='http://www."
-                                  "w3.org/2001/XMLSchema'>"
-                                  "<xs:element name='elem'>"
-                                  "<xs:complexType>"
-                                  "<xs:sequence>"
-                                  "<xs:element name='child1' type='empty'/>"
-                                  "<xs:element name='child2' type='empty'/>"
-                                  "</xs:sequence>"
-                                  "</xs:complexType>"
-                                  "</xs:element>"
-                                  "<xs:complexType name='empty'/>"
-                                  "</xs:schema>")
-        elem = etree.Element('elem')
-        etree.SubElement(elem, 'child1')
-        etree.SubElement(elem, 'child2')
-        mock_child = mock.MagicMock(spec=base.FomodElement)
-        mock_self.__contains__ = lambda y, x: True if x is mock_child \
-            else False
-        mock_self._schema_element = mock.Mock(spec=ElementTest)
-        mock_copy.return_value = elem
-        mock_schema.return_value = schema
-        mock_self.index.return_value = 1
-        assert not test_func(mock_self, mock_child)
-
-    def test_remove_child(self):
-        test_func = base.FomodElement.remove_child
-
-        elem = ElementTest()
-        elem._assert_valid = lambda: None
-        elem_child = ElementTest()
-        elem_child._comment = None
-
-        elem.can_remove_child = lambda _: False
-        with pytest.raises(ValueError):
-            test_func(elem, 0)
-
-        elem.can_remove_child = lambda _: True
-        elem.append(elem_child)
-        test_func(elem, elem_child)
-        assert len(elem) == 0
-
-        elem_child._comment = etree.Comment('comment')
-        elem.append(elem_child._comment)
-        elem.append(elem_child)
-        test_func(elem, elem_child)
-        assert len(elem) == 0
-
-    @mock.patch('pyfomod.base.copy_element')
-    @mock.patch('pyfomod.base.copy_schema')
-    def test_can_replace_child(self, mock_schema, mock_copy):
-        test_func = base.FomodElement.can_replace_child
-
-        # errors
-        with pytest.raises(TypeError):
-            # second arg is anything but FomodElement
-            mock_self = mock.Mock(spec=base.FomodElement)
-            test_func(mock_self, 0, 0)
-        mock_self = mock.MagicMock(spec=base.FomodElement)
-        mock_old = mock.MagicMock(spec=base.FomodElement)
-        mock_new = mock.MagicMock(spec=base.FomodElement)
-        with pytest.raises(ValueError):
-            test_func(mock_self, mock_old, mock_new)
-
-        # normal
-        schema = etree.fromstring("<xs:schema xmlns:xs='http://www."
-                                  "w3.org/2001/XMLSchema'>"
-                                  "<xs:element name='elem'>"
-                                  "<xs:complexType>"
-                                  "<xs:choice>"
-                                  "<xs:element name='child1' type='empty'/>"
-                                  "<xs:element name='child2' type='empty'/>"
-                                  "</xs:choice>"
-                                  "</xs:complexType>"
-                                  "</xs:element>"
-                                  "<xs:complexType name='empty'/>"
-                                  "</xs:schema>")
-        elem = etree.Element('elem')
-        etree.SubElement(elem, 'child1')
-        mock_old = mock.MagicMock(spec=base.FomodElement)
-        mock_old.tag = 'child1'
-        mock_new = mock.MagicMock(spec=base.FomodElement)
-        mock_new.tag = 'child2'
-        mock_self = mock.MagicMock(spec=base.FomodElement)
-        mock_self.__contains__ = lambda y, x: True \
-            if x is mock_old else False
-        mock_self._schema_element = mock.Mock(spec=ElementTest)
-        mock_copy.return_value = elem
-        mock_schema.return_value = schema
-        mock_self.index.return_value = 0
-        mock_new.getparent.return_value = None
-        assert test_func(mock_self, mock_old, mock_new)
-        mock_parent = mock.Mock(spec=base.FomodElement)
-        mock_new.getparent.return_value = mock_parent
-        mock_parent.can_remove_child = lambda x: False \
-            if x is mock_new else True
-        assert not test_func(mock_self, mock_old, mock_new)
-
-    def test_replace_child(self):
-        test_func = base.FomodElement.replace_child
-
-        elem = ElementTest()
-        elem._assert_valid = lambda: None
-
-        elem.can_replace_child = lambda x, y: False
-        with pytest.raises(ValueError):
-            test_func(elem, 0, 0)
-
-        elem.can_replace_child = lambda x, y: True
-
-        elem_oldchild = ElementTest()
-        elem_oldchild._comment = None
-        elem_newchild = ElementTest()
-        elem_newchild._comment = None
-        parent = ElementTest()
-        parent.remove_child = parent.remove
-
-        elem.append(elem_oldchild)
-        test_func(elem, elem_oldchild, elem_newchild)
-        assert list(elem) == [elem_newchild]
-
-        com_new = elem_newchild._comment = etree.Comment('new')
-        com_old = elem_oldchild._comment = etree.Comment('old')
-        parent.append(com_new)
-        parent.append(elem_newchild)
-        elem.append(com_old)
-        elem.append(elem_oldchild)
-        test_func(elem, elem_oldchild, elem_newchild)
-        assert list(elem) == [com_new, elem_newchild]
-
-    def test_can_reorder_child(self):
-        test_func = base.FomodElement.can_reorder_child
-        ElementTest._assert_valid = base.FomodElement._assert_valid
-
-        schema = etree.fromstring("<xs:schema xmlns:xs='http://www"
-                                  ".w3.org/2001/XMLSchema'>"
-                                  "<xs:element name='a'>"
-                                  "<xs:complexType>"
-                                  "<xs:sequence>"
-                                  "<xs:element name='b' "
-                                  "maxOccurs='5' minOccurs='0'/>"
-                                  "</xs:sequence>"
-                                  "</xs:complexType>"
-                                  "</xs:element>"
-                                  "</xs:schema>")
-        root = make_element('a')
-        root._schema_element = schema[0]
-        elem1 = make_element('b')
-        elem1._schema_element = schema[0][0][0][0]
-
-        with pytest.raises(ValueError):
-            test_func(root, elem1)
-
-        root.append(elem1)
-        assert not test_func(root, elem1)
-
-        elem2 = make_element('b')
-        elem2._schema_element = schema[0][0][0][0]
-        root.append(elem2)
-        assert test_func(root, elem1)
-        assert test_func(root, elem2)
-
-    def test_reorder_child(self):
-        test_func = base.FomodElement.reorder_child
-        ElementTest._assert_valid = base.FomodElement._assert_valid
-        ElementTest.can_reorder_child = base.FomodElement.can_reorder_child
-        ElementTest._comment = None
-        ElementTest.children = base.FomodElement.children
-
-        schema = etree.fromstring("<xs:schema xmlns:xs='http://www"
-                                  ".w3.org/2001/XMLSchema'>"
-                                  "<xs:element name='a'>"
-                                  "<xs:complexType>"
-                                  "<xs:sequence>"
-                                  "<xs:element name='b' "
-                                  "maxOccurs='5' minOccurs='0'/>"
-                                  "</xs:sequence>"
-                                  "</xs:complexType>"
-                                  "</xs:element>"
-                                  "</xs:schema>")
-        root = make_element('a')
-        root._schema_element = schema[0]
-        elem1 = make_element('b')
-        elem1._schema_element = schema[0][0][0][0]
-
-        with pytest.raises(ValueError):
-            test_func(root, elem1, 0)
-
-        root.append(elem1)
-        with pytest.raises(ValueError):
-            test_func(root, elem1, 0)
-
-        elem2 = make_element('b')
-        elem2._schema_element = schema[0][0][0][0]
-        root.append(elem2)
-        assert list(root) == [elem1, elem2]
-        test_func(root, elem1, 2)
-        assert list(root) == [elem2, elem1]
-        test_func(root, elem1, -2)
-        assert list(root) == [elem1, elem2]
-
-        elem3 = make_element('b')
-        elem3._schema_element = schema[0][0][0][0]
-        root.append(elem3)
-        assert list(root) == [elem1, elem2, elem3]
-        test_func(root, elem2, 1)
-        assert list(root) == [elem1, elem3, elem2]
-        test_func(root, elem2, -1)
-        assert list(root) == [elem1, elem2, elem3]
-
-        elem2_com = elem2._comment = etree.Comment('comment elem2')
-        root.insert(root.index(elem2), elem2_com)
-        assert list(root) == [elem1, elem2_com, elem2, elem3]
-        test_func(root, elem2, 1)
-        assert list(root) == [elem1, elem3, elem2_com, elem2]
-        test_func(root, elem2, -2)
-        assert list(root) == [elem2_com, elem2, elem1, elem3]
-        test_func(root, elem2, 1)
-        assert list(root) == [elem1, elem2_com, elem2, elem3]
-
-        elem3_com = elem3._comment = etree.Comment('comment elem3')
-        root.insert(root.index(elem3), elem3_com)
-        assert list(root) == [elem1, elem2_com, elem2, elem3_com, elem3]
-        test_func(root, elem1, 1)
-        assert list(root) == [elem2_com, elem2, elem1, elem3_com, elem3]
-
-    def test_copy(self):
-        test_func = base.FomodElement.__copy__
-        ElementTest.__copy__ = base.FomodElement.__copy__
-        ElementTest.__deepcopy__ = mock_copy = mock.Mock()
-
-        elem = make_element('a')
-        test_func(elem)
-        mock_copy.assert_called_once()
-
-    def test_deepcopy_root(self):
-        test_func = base.FomodElement.__deepcopy__
-        ElementTest._comment = None
-        ElementTest.comment = base.FomodElement.comment
-        ElementTest.__deepcopy__ = base.FomodElement.__deepcopy__
-
-        # root with text
-        schema = etree.fromstring("<xs:schema xmlns:xs='http://www"
-                                  ".w3.org/2001/XMLSchema'>"
-                                  "<xs:element name='a' type='xs:string'/>"
-                                  "</xs:schema>")
-        elem = make_element('a')
-        elem.text = 'text'
-        elem.makeelement = make_element
-        elem._schema_element = schema[0]
-        assert_elem_eq(test_func(elem, None), elem)
-
-        # child with grandchildren and comment
-        schema = etree.fromstring("<xs:schema xmlns:xs='http://www"
-                                  ".w3.org/2001/XMLSchema'>"
-                                  "<xs:element name='a'>"
-                                  "<xs:complexType>"
-                                  "<xs:sequence>"
-                                  "<xs:element name='b'>"
-                                  "<xs:complexType>"
-                                  "<xs:sequence>"
-                                  "<xs:element name='c'/>"
-                                  "<xs:element name='d'/>"
-                                  "</xs:sequence>"
-                                  "</xs:complexType>"
-                                  "</xs:element>"
-                                  "</xs:sequence>"
-                                  "</xs:complexType>"
-                                  "</xs:element>"
-                                  "</xs:schema>")
-        lookup = etree.ElementDefaultClassLookup(element=ElementTest)
-        xml_parser = etree.XMLParser()
-        xml_parser.set_element_class_lookup(lookup)
-        root = etree.fromstring("<a><b><c/><d/></b></a>", xml_parser)
-        elem = root[0]
-        elem.makeelement = make_element
-        elem._schema_element = schema[0][0][0][0]
-        elem._comment = etree.Comment('comment')
-        elem.addprevious(elem._comment)
-        elem_c = elem[0]
-        elem_c.makeelement = make_element
-        elem_c._schema_element = schema[0][0][0][0][0][0][0]
-        elem_d = elem[1]
-        elem_d.makeelement = make_element
-        elem_d._schema_element = schema[0][0][0][0][0][0][1]
-        assert_elem_eq(test_func(elem, None), elem)
+        self.cond.type = base.ConditionType.OR
+        assert self.cond.type is base.ConditionType.OR
+        assert self.cond._type is base.ConditionType.OR
+
+    def test_to_string(self):
+        self.cond.type = base.ConditionType.OR
+        self.cond[None] = "1.0"
+        self.cond["boop"] = "beep"
+        nest = base.Conditions()
+        nest.type = base.ConditionType.AND
+        nest["file"] = base.FileType.MISSING
+        self.cond[nest] = None
+        expected = textwrap.dedent(
+            """\
+                <dependencies operator="Or">
+                  <gameDependency version="1.0"/>
+                  <flagDependency flag="boop" value="beep"/>
+                  <dependencies operator="And">
+                    <fileDependency file="file" state="Missing"/>
+                  </dependencies>
+                </dependencies>"""
+        )
+        self.cond.to_string() == expected
+
+    def test_validate(self):
+        warn_msg = (
+            "Empty Conditions - This element should have "
+            "at least one condition present."
+        )
+        with pytest.warns(base.ValidationWarning, match=warn_msg):
+            self.cond.validate()
+        nest = base.Conditions()
+        self.cond[nest] = None
+        warn_msg = (
+            "Empty Conditions - This element is empty and "
+            "will not be written to prevent errors."
+        )
+        with pytest.warns(base.ValidationWarning, match=warn_msg):
+            self.cond.validate()
+        self.cond[None] = ""
+        warn_msg = (
+            "Empty Version Dependency - This version dependency "
+            "is empty and may not work correctly."
+        )
+        with pytest.warns(base.ValidationWarning, match=warn_msg):
+            self.cond.validate()
+        self.cond[""] = base.FileType.ACTIVE
+        warn_msg = (
+            "Empty File Dependency - This file dependency depends "
+            "on no file, may not work correctly."
+        )
+        with pytest.warns(base.ValidationWarning, match=warn_msg):
+            self.cond.validate()
+        self.cond._tag = "moduleDependencies"
+        self.cond["boop"] = "beep"
+        warn_msg = (
+            "Useless Flags - Flag boop shouldn't be used here "
+            "since it can't have been set."
+        )
+        with pytest.warns(base.ValidationWarning, match=warn_msg):
+            self.cond.validate()
+
+
+class Test_Files:
+    def setup_method(self):
+        self.files = base.Files()
+
+    def test_getitem(self):
+        item1 = base.File("file")
+        item1.src = "boop"
+        item1.dst = "boopity"
+        item2 = base.File("folder")
+        item2.src = "beep"
+        item2.dst = "beepity"
+        self.files._file_list.extend([item1, item2])
+        assert self.files["boop"] == "boopity"
+        assert self.files["beep/"] == "beepity"
+
+    def test_setitem(self):
+        self.files["boop"] = ""
+        assert self.files._file_list[0]._tag == "file"
+        self.files._file_list.clear()
+        self.files["beep/"] = ""
+        assert self.files._file_list[0]._tag == "folder"
+
+    def test_delitem(self):
+        item1 = base.File("file")
+        item1.src = "boop"
+        item1.dst = "boopity"
+        item2 = base.File("folder")
+        item2.src = "beep"
+        item2.dst = "beepity"
+        self.files._file_list.extend([item1, item2])
+        assert list(self.files.keys()) == ["boop", "beep/"]
+        del self.files["beep/"]
+        assert list(self.files.keys()) == ["boop"]
+
+    def test_to_string(self):
+        self.files["boop"] = "boopity"
+        self.files["beep/"] = "beepity"
+        expected = textwrap.dedent(
+            """\
+                <files>
+                  <file source="boop" destination="boopity"/>
+                  <folder source="beep" destination="beepity"/>
+                </files>"""
+        )
+        assert self.files.to_string() == expected
+
+
+class Test_File:
+    def setup_method(self):
+        self.file = base.File()
+
+    def test_to_string(self):
+        self.file._tag = "file"
+        self.file.src = "src"
+        self.file.dst = "dst"
+        expected = '<file source="src" destination="dst"/>'
+        self.file.to_string() == expected
+        self.file.dst = ""
+        expected = '<file source="src"/>'
+        self.file.to_string() == expected
+
+    def test_validate(self):
+        warn_msg = (
+            "Empty Source Field - No source specified, nothing will be installed."
+        )
+        with pytest.warns(base.ValidationWarning, match=warn_msg):
+            self.file.validate()
+
+
+class Test_Pages:
+    def setup_method(self):
+        self.pages = base.Pages()
+
+    def test_order(self):
+        self.pages.order = base.Order.EXPLICIT
+        assert self.pages.order is base.Order.EXPLICIT
+        assert self.pages._order is base.Order.EXPLICIT
+
+    def test_to_string(self):
+        page1 = base.Page()
+        page1.append(base.Group())
+        page1.name = "boop"
+        text = page1.to_string()
+        page2 = base.Page()
+        self.pages.extend([page1, page2])
+        expected = textwrap.dedent(
+            """\
+                <installSteps order="Explicit">
+{}
+                </installSteps>""".format(
+                textwrap.indent(text, "    " * 4 + "  ")
+            )
+        )
+        assert self.pages.to_string() == expected
+
+    def test_validate(self):
+        self.pages.append(base.Page())
+        warn_msg = (
+            "Empty Page - This page is empty and will not be written to prevent errors."
+        )
+        with pytest.warns(base.ValidationWarning, match=warn_msg):
+            self.pages.validate()
+
+
+class Test_Page:
+    def setup_method(self):
+        self.page = base.Page()
+
+    def test_name(self):
+        self.page.name = "boop"
+        assert self.page.name == "boop"
+        assert self.page._name == "boop"
+
+    def test_conditions(self):
+        test = base.Conditions()
+        self.page.conditions = test
+        assert self.page.conditions is test
+        assert self.page._conditions is test
+
+    def test_order(self):
+        self.page.order = base.Order.EXPLICIT
+        assert self.page.order is base.Order.EXPLICIT
+        assert self.page._order is base.Order.EXPLICIT
+
+    def test_to_string(self):
+        group1 = base.Group()
+        group1.append(base.Option())
+        text = group1.to_string()
+        group2 = base.Group()
+        self.page.extend([group1, group2])
+        self.page.name = "boop"
+        self.page.order = base.Order.ASCENDING
+        expected = textwrap.dedent(
+            """\
+                <installStep name="boop">
+                  <optionalFileGroups order="Ascending">
+{}
+                  </optionalFileGroups>
+                </installStep>""".format(
+                textwrap.indent(text, "    " * 5)
+            )
+        )
+        assert self.page.to_string() == expected
+
+    def test_validate(self):
+        warn_msg = "Empty Page Name - This page has no name."
+        with pytest.warns(base.ValidationWarning, match=warn_msg):
+            self.page.validate()
+        self.page.append(base.Group())
+        warn_msg = (
+            "Empty Group - This group is empty and will "
+            "not be written to prevent errors."
+        )
+        with pytest.warns(base.ValidationWarning, match=warn_msg):
+            self.page.validate()
+
+
+class Test_Group:
+    def setup_method(self):
+        self.group = base.Group()
+
+    def test_name(self):
+        self.group.name = "boop"
+        assert self.group.name == "boop"
+        assert self.group._name == "boop"
+
+    def test_order(self):
+        self.group.order = base.Order.EXPLICIT
+        assert self.group.order is base.Order.EXPLICIT
+        assert self.group._order is base.Order.EXPLICIT
+
+    def test_type(self):
+        self.group.type = base.GroupType.ALL
+        assert self.group.type is base.GroupType.ALL
+        assert self.group._type is base.GroupType.ALL
+
+    def test_to_string(self):
+        option1 = base.Option()
+        option1_text = option1.to_string()
+        self.group.append(option1)
+        self.group.name = "name"
+        self.group.order = base.Order.DESCENDING
+        self.group.type = base.GroupType.ALL
+        expected = textwrap.dedent(
+            """\
+                <group name="name" type="SelectAll">
+                  <plugins order="Descending">
+{}
+                  </plugins>
+                </group>""".format(
+                textwrap.indent(option1_text, "    " * 5)
+            )
+        )
+        assert self.group.to_string() == expected
+
+    def test_validate(self):
+        warn_msg = "Empty Group Name - This group has no name."
+        with pytest.warns(base.ValidationWarning, match=warn_msg):
+            self.group.validate()
+
+
+class Test_Option:
+    def setup_method(self):
+        self.option = base.Option()
+
+    def test_name(self):
+        self.option.name = "boop"
+        assert self.option.name == "boop"
+        assert self.option._name == "boop"
+
+    def test_description(self):
+        self.option.description = "aa"
+        assert self.option.description == "aa"
+        assert self.option._description == "aa"
+
+    def test_image(self):
+        self.option.image = "path"
+        assert self.option.image == "path"
+        assert self.option._image == "path"
+
+    def test_files(self):
+        test = base.Files()
+        self.option.files = test
+        assert self.option.files is test
+        assert self.option._files is test
+
+    def test_flags(self):
+        test = base.Flags()
+        self.option.flags = test
+        assert self.option.flags is test
+        assert self.option._flags is test
+
+    def test_type(self):
+        self.option.type = base.OptionType.REQUIRED
+        assert self.option.type is base.OptionType.REQUIRED
+        assert self.option._type is base.OptionType.REQUIRED
+        test = base.Type()
+        self.option.type = test
+        assert self.option.type is test
+        assert self.option._type is test
+
+    def test_to_string(self):
+        self.option.name = "boo"
+        self.option.description = "bee"
+        self.option.image = "path"
+        self.option.type = base.OptionType.RECOMMENDED
+        files = base.Files()
+        files["src"] = "dst"
+        files_text = files.to_string()
+        self.option.files = files
+        flags = base.Flags()
+        flags["flag"] = "value"
+        flags_text = flags.to_string()
+        self.option.flags = flags
+        expected = textwrap.dedent(
+            """\
+                <plugin name="boo">
+                  <description>bee</description>
+                  <image path="path"/>
+{}
+{}
+                  <typeDescriptor>
+                    <type name="Recommended"/>
+                  </typeDescriptor>
+                </plugin>""".format(
+                textwrap.indent(files_text, "    " * 4 + "  "),
+                textwrap.indent(flags_text, "    " * 4 + "  "),
+            )
+        )
+        assert self.option.to_string() == expected
+
+    def test_validate(self):
+        warn_msg = "Empty Option Name - This option has no name."
+        with pytest.warns(base.ValidationWarning, match=warn_msg):
+            self.option.validate()
+        warn_msg = "Empty Option Description - This option has no description."
+        with pytest.warns(base.ValidationWarning, match=warn_msg):
+            self.option.validate()
+        warn_msg = (
+            "Option Does Nothing - This option installs no files and sets no flags."
+        )
+        with pytest.warns(base.ValidationWarning, match=warn_msg):
+            self.option.validate()
+
+
+class Test_Flags:
+    def setup_method(self):
+        self.flags = base.Flags()
+
+    def test_to_string(self):
+        self.flags["flag"] = "value"
+        expected = textwrap.dedent(
+            """\
+                <conditionFlags>
+                  <flag name="flag">value</flag>
+                </conditionFlags>"""
+        )
+        assert self.flags.to_string() == expected
+
+
+class Test_Type:
+    def setup_method(self):
+        self.type = base.Type()
+
+    def test_default(self):
+        self.type.default = base.OptionType.RECOMMENDED
+        assert self.type.default is base.OptionType.RECOMMENDED
+        assert self.type._default is base.OptionType.RECOMMENDED
+
+    def test_to_string(self):
+        self.type.default = base.OptionType.REQUIRED
+        cond = base.Conditions()
+        cond["flag"] = "value"
+        self.type[cond] = base.OptionType.RECOMMENDED
+        text = cond.to_string()
+        expected = textwrap.dedent(
+            """\
+                <dependencyType>
+                  <defaultType name="Required"/>
+                  <patterns>
+                    <pattern>
+{}
+                      <type name="Recommended"/>
+                    </pattern>
+                  </patterns>
+                </dependencyType>""".format(
+                textwrap.indent(text, "    " * 5 + "  ")
+            )
+        )
+        assert self.type.to_string() == expected
+
+    def test_validate(self):
+        warn_msg = (
+            "Empty Type Descriptor - This type descriptor "
+            "is empty and will never set a type."
+        )
+        with pytest.warns(base.ValidationWarning, match=warn_msg):
+            self.type.validate()
+
+
+class Test_FilePatterns:
+    def setup_method(self):
+        self.set = base.FilePatterns()
+
+    def test_to_string(self):
+        cond = base.Conditions()
+        cond["flag"] = "value"
+        cond_text = cond.to_string()
+        files = base.Files()
+        files["src"] = "dst"
+        files_text = files.to_string()
+        self.set[cond] = files
+        expected = textwrap.dedent(
+            """\
+                <conditionalFileInstalls>
+                  <patterns>
+                    <pattern>
+{}
+{}
+                    </pattern>
+                  </patterns>
+                </conditionalFileInstalls>""".format(
+                textwrap.indent(cond_text, "    " * 5 + "  "),
+                textwrap.indent(files_text, "    " * 5 + "  "),
+            )
+        )
+        assert self.set.to_string() == expected

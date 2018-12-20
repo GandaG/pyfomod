@@ -12,238 +12,211 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
-This module holds the custom parser.
-"""
+import errno
+import os
+from collections import OrderedDict
+from contextlib import suppress
+from pathlib import Path
 
 from lxml import etree
-from pyfomod import io, tree, validation
+
+from . import base
+
+SCHEMA_PATH = Path(__file__).parent / "fomod.xsd"
 
 
-def new(old_schema_link=True):
-    """
-    Creates a brand new fomod installer.
+class Placeholder(object):
+    def __init__(self, tag, attrib):
+        self._tag = tag
+        self._attrib = attrib
+        self._children = OrderedDict()
 
-    Args:
-        old_schema_link (bool, optional): Whether to use the old schema
-            location for compatibility with some mod managers.
 
-    Returns:
-        tree.Root: The root of the new fomod tree.
-    """
-    if old_schema_link:
-        namespace = 'http://qconsulting.ca/fo3/ModConfig5.0.xsd'
+class PatternPlaceholder(Placeholder):
+    def __init__(self, attrib):
+        super().__init__("pattern", attrib)
+        self.conditions = None
+        self.value = None
+
+
+class Target(object):
+    def __init__(self, quiet=True):
+        self.quiet = quiet
+        self._stack = []
+        self._data = ""
+        self._last = None
+
+    def start(self, tag, attrib):
+        elem = None
+        attrib = dict(attrib)
+        with suppress(IndexError):
+            parent = self._stack[-1]
+        with suppress(IndexError):
+            gparent = self._stack[-2]
+        if tag == "config":
+            elem = base.Root(attrib)
+        elif tag == "fomod":
+            elem = base.Info(attrib)
+        elif tag == "moduleName":
+            elem = base.Name(attrib)
+            parent._name = elem
+        elif tag in ("moduleDependencies", "dependencies", "visible"):
+            elem = base.Conditions(attrib)
+            elem.type = base.ConditionType(attrib.get("operator", "And"))
+            if isinstance(parent, base.Conditions):  # nested dependencies
+                parent[elem] = None
+            else:
+                parent.conditions = elem
+        elif tag == "requiredInstallFiles":
+            elem = base.Files(attrib)
+            parent.files = elem
+        elif tag in ("file", "folder"):
+            elem = base.File(tag, attrib)
+            elem.src = attrib["source"]
+            elem.dst = attrib.get("destination", "")
+            parent._file_list.append(elem)
+        elif tag == "installSteps":
+            elem = base.Pages(attrib)
+            elem.order = base.Order(attrib.get("order", "Ascending"))
+            parent.pages = elem
+        elif tag == "installStep":
+            elem = base.Page(attrib)
+            elem.name = attrib["name"]
+            parent._page_list.append(elem)
+        elif tag == "group":
+            elem = base.Group(attrib)
+            elem.name = attrib["name"]
+            elem.type = base.GroupType(attrib["type"])
+            gparent._group_list.append(elem)
+        elif tag == "plugin":
+            elem = base.Option(attrib)
+            elem.name = attrib["name"]
+            gparent._option_list.append(elem)
+        elif tag == "files":
+            elem = base.Files(attrib)
+            if isinstance(parent, base.Option):
+                parent.files = elem
+            else:  # under pattern tag
+                parent.value = elem
+        elif tag == "conditionFlags":
+            elem = base.Flags(attrib)
+            parent.flags = elem
+        elif tag == "dependencyType":
+            elem = base.Type(attrib)
+            gparent.type = elem
+        elif tag == "conditionalFileInstalls":
+            elem = base.FilePatterns(attrib)
+            parent.file_patterns = elem
+        elif tag == "pattern":
+            elem = PatternPlaceholder(attrib)
+        else:
+            elem = Placeholder(tag, attrib)
+        self._stack.append(elem)
+
+    def data(self, data):
+        self._data = data.strip()
+
+    def end(self, tag):
+        elem = self._stack.pop()
+        assert tag == elem._tag
+        with suppress(IndexError):
+            parent = self._stack[-1]
+        with suppress(IndexError):
+            gparent = self._stack[-2]
+        if isinstance(elem, Placeholder):
+            parent._children[elem._tag] = (elem._attrib, self._data)
+        if tag == "moduleName":
+            elem.name = self._data
+        elif tag == "fileDependency":
+            fname = elem._attrib["file"]
+            ftype = base.FileType(elem._attrib["state"])
+            parent[fname] = ftype
+        elif tag == "flagDependency":
+            fname = elem._attrib["flag"]
+            fvalue = elem._attrib["value"]
+            parent[fname] = fvalue
+        elif tag == "gameDependency":
+            parent[None] = elem._attrib["version"]
+        elif tag in ("optionalFileGroups", "plugins"):
+            order = elem._attrib.get("order", "Ascending")
+            parent._order = base.Order(order)
+        elif tag == "description":
+            parent._description = self._data
+        elif tag == "image":
+            parent._image = elem._attrib["path"]
+        elif tag == "flag":
+            parent._map[elem._attrib["name"]] = self._data
+        elif tag == "type":
+            if isinstance(gparent, base.Option):
+                gparent._type = base.OptionType(elem._attrib["name"])
+            else:  # under pattern tag
+                parent.value = base.OptionType(elem._attrib["name"])
+        elif tag == "defaultType":
+            parent._default = base.OptionType(elem._attrib["name"])
+        elif tag == "pattern":
+            gparent[elem.conditions] = elem.value
+        self._data = ""
+        self._last = elem
+
+    def comment(self, text):
+        if text and not self.quiet:
+            title = "Comment Detected"
+            msg = "There are comments in this fomod, they will be ignored."
+            base.warn(title, msg, None)
+
+    def close(self):
+        assert not self._stack
+        assert isinstance(self._last, (base.Root, base.Info))
+        return self._last
+
+
+def parse(source, quiet=True):
+    if isinstance(source, (tuple, list)):
+        info, conf = source
     else:
-        namespace = "https://github.com/fomod-lang/fomod/blob/" \
-                    "5.0/ModuleConfig.xsd"
-    attribs = {"{http://www.w3.org/2001/XMLSchema-instance}"
-               "noNamespaceSchemaLocation": namespace}
-
-    fake_parser = etree.XMLParser(remove_blank_text=True)
-    fake_parser.set_element_class_lookup(SpecialLookup(FomodLookup()))
-
-    info_tree = fake_parser.makeelement('fomod')
-    info_tree._setup_new_element()
-    validation.assert_valid(info_tree)
-
-    parser = FomodParser(info_tree, remove_blank_text=True)
-    parser.set_element_class_lookup(SpecialLookup(FomodLookup()))
-
-    conf_tree = parser.makeelement('config', attrib=attribs)
-    conf_tree._setup_new_element()
-    validation.assert_valid(conf_tree)
-
-    return conf_tree
-
-
-def from_string(info, conf):
-    """
-    Accepts strings (or bytestrings) as the fomod xml trees and returns
-    a Root object.
-
-    ``info`` corresponds to the contents of the *info.xml* file.
-    ``conf`` corresponds to the contents of the *ModuleConfig.xml* file.
-
-    Args:
-        info (str, bytes): The contents of the *info.xml* file.
-        conf (str, bytes): The contents of the *ModuleConfig.xml* file.
-
-    Returns:
-        tree.Root: The Root of the fomod installer.
-
-    Raises:
-        AssertionError: If the strings do not contain valid fomod xml.
-    """
-    # the fake parser will be used to get correct element types
-    # during tree builder
-    fake_parser = etree.XMLParser(remove_blank_text=True)
-    fake_parser.set_element_class_lookup(SpecialLookup(FomodLookup()))
-
-    info_tree = etree.fromstring(info, parser=fake_parser)
-    validation.assert_valid(info_tree)
-
-    parser = FomodParser(info_tree, remove_blank_text=True)
-    parser.set_element_class_lookup(SpecialLookup(FomodLookup()))
-
-    conf_tree = etree.fromstring(conf, parser=parser)
-    validation.assert_valid(conf_tree)
-
-    return conf_tree
+        path = Path(source) / "fomod"
+        if not path.is_dir():
+            raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), "fomod")
+        info = path / "info.xml"
+        conf = path / "moduleconfig.xml"
+        if not info.is_file():
+            info = None
+        else:
+            info = str(info)
+        if not conf.is_file():
+            raise FileNotFoundError(
+                errno.ENOENT, os.strerror(errno.ENOENT), "moduleconfig.xml"
+            )
+        else:
+            conf = str(conf)
+    if not quiet:
+        schema = etree.XMLSchema(etree.parse(str(SCHEMA_PATH)))
+        try:
+            etree.parse(conf, etree.XMLParser(schema=schema))
+        except etree.XMLSyntaxError as exc:
+            base.warn("Syntax Error", str(exc), None, critical=True)
+    parser = etree.XMLParser(target=Target(quiet))
+    root = etree.parse(conf, parser)
+    if info is not None:
+        root._info = etree.parse(info, parser)
+    return root
 
 
-def parse(source):
-    """
-    Accepts paths to the fomod package and returns a Root object.
-
-    Args:
-        source (str, list(str, str), tuple(str, str)):
-            The path to the fomod package. Accepts a single folder path
-            or a tuple/list of file paths as *(info.xml, ModuleConfig.xml)*.
-
-            The single path must point to a folder with the following rules.
-            Both a subfolder named *fomod* in the `path` and
-            `path` itself being the *fomod* folder are supported.
-            Priority is given to *fomod* subfolder.
-            `path`. Examples:
-
-            * `folder/somefolder/` - *somefolder* contains a *fomod* subfolder;
-            * `folder/somefolder/fomod`.
-
-    Returns:
-        tree.Root: The Root of the fomod installer.
-
-    Raises:
-        AssertionError: If the strings do not contain valid fomod xml.
-    """
-    if not isinstance(source, (tuple, list)):
-        source = io.get_installer_files(source)
-
-    with open(source[0], 'rb') as info, open(source[1], 'rb') as conf:
-        return from_string(info.read(), conf.read())
-
-
-def to_string(fomod):
-    """
-    Serializes a fomod installer ``fomod`` to a tuple of bytestrings,
-    (*info.xml*, *ModuleConfig.xml*).
-
-    Args:
-        fomod (tree.Root): The installer to serialize.
-
-    Returns:
-        tuple(bytes, bytes): A tuple of bytestrings as
-            (*info.xml*, *ModuleConfig.xml*)
-
-    Raises:
-        AssertionError: If the strings do not contain valid fomod xml.
-    """
-    info_tree = etree.ElementTree(fomod.info_root)
-    validation.assert_valid(info_tree)
-    info_str = etree.tostring(info_tree,
-                              xml_declaration=True,
-                              pretty_print=True,
-                              encoding='utf-8')
-
-    conf_tree = etree.ElementTree(fomod)
-    validation.assert_valid(conf_tree)
-    conf_str = etree.tostring(conf_tree,
-                              xml_declaration=True,
-                              pretty_print=True,
-                              encoding='utf-8')
-
-    return info_str, conf_str
-
-
-def write(fomod, path):
-    """
-    Writes a fomod installer ``fomod`` to a package at ``path``. Folders and
-    files are created as necessary.
-
-    Args:
-        fomod (tree.Root): The installer to serialize.
-        path (str, tuple(str, str), list(str, str): The path to write to.
-            Accepts a single folder path
-            or a tuple/list of file paths as *(info.xml, ModuleConfig.xml)*.
-
-            The single path must point to a folder with the following rules.
-            Both a subfolder named *fomod* in the `path` and
-            `path` itself being the *fomod* folder are supported.
-            Priority is given to *fomod* subfolder.
-            `path`. Examples:
-
-            - `folder/somefolder/` - a *fomod* folder will be created
-              in *somefolder* if needed;
-            - `folder/somefolder/fomod`.
-
-    Raises:
-        AssertionError: If the strings do not contain valid fomod xml.
-    """
-    if not isinstance(path, (tuple, list)):
-        path = io.get_installer_files(path, create_missing=True)
-
-    with open(path[0], 'wb') as info, open(path[1], 'wb') as conf:
-        info_str, conf_str = to_string(fomod)
-        info.write(info_str)
-        conf.write(conf_str)
-
-
-class SpecialLookup(etree.CustomElementClassLookup):
-    """
-    This class is used to lookup and filter outcomments an PI's before we
-    get to the tree-based lookup because it REALLY doesn't like to lookup
-    comments.
-    """
-    def lookup(self, node_type, doc, ns, name):
-        del doc, ns, name
-
-        if node_type == "comment":
-            return etree.CommentBase
-        elif node_type == "PI":
-            return etree.PIBase
-        return None
-
-
-class FomodLookup(etree.PythonElementClassLookup):
-    """
-    The class used to lookup the correct class for key tags in the FOMOD
-    document. A full tree based lookup is necessary due to the two pattern
-    classes having the same tag name but being essentially different.
-    """
-    def lookup(self, doc, element):
-        del doc  # make pylint shut up
-
-        element_class = tree.FomodElement
-
-        if element.tag == 'config':
-            element_class = tree.Root
-        elif element.tag in ('dependencies', 'moduleDependencies', 'visible'):
-            element_class = tree.Dependencies
-        elif element.tag == 'installStep':
-            element_class = tree.InstallStep
-        elif element.tag == 'group':
-            element_class = tree.Group
-        elif element.tag == 'plugin':
-            element_class = tree.Plugin
-        elif element.tag == 'dependencyType':
-            element_class = tree.TypeDependency
-
-        # the pattern classes
-        # ugh...
-        elif element.tag == 'pattern':
-            grandparent = element.getparent().getparent()
-            if grandparent.tag == "conditionalFileInstalls":
-                element_class = tree.InstallPattern
-            elif grandparent.tag == "dependencyType":
-                element_class = tree.TypePattern
-
-        return element_class
-
-
-class FomodParser(etree.XMLParser):
-    """
-    Currently used exclusively for holding package-global variables
-    for the trees. Fun.
-    """
-    def __init__(self, info_root, *args, **kwargs):
-        self.info_root = info_root
-        super(FomodParser, self).__init__(*args, **kwargs)
+def write(root, path):
+    if isinstance(path, (tuple, list)):
+        info = path[0]
+        if info is not None:
+            info = Path(info)
+        conf = Path(path[1])
+    else:
+        path = Path(path) / "fomod"
+        path.mkdir(parents=True, exist_ok=True)
+        info = path / "info.xml"
+        conf = path / "moduleconfig.xml"
+    if info is not None:
+        with info.open("w") as info_f:
+            info_f.write(root._info.to_string())
+            info_f.write("\n")
+    with conf.open("w") as conf_f:
+        conf_f.write(root.to_string())
+        conf_f.write("\n")
