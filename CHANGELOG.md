@@ -1,5 +1,10 @@
 ## Changelog
 
+#### 0.4.0
+
+* Complete project and API rework.
+* Previous API has been entirely deprecated.
+
 #### 0.3.3
 
 * Removed second argument to `can_reorder_child` - movement is no longer
