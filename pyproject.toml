@@ -28,3 +28,7 @@ test = [
     "pytest-cov",
     "pytest-sugar",
 ]
+doc = [
+    "sphinx",
+    "sphinx-rtd-theme",
+]
