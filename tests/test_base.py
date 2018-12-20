@@ -222,7 +222,8 @@ class Test_Root:
         self.root.name = "Name"
         expected = textwrap.dedent(
             """\
-            <config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://qconsulting.ca/fo3/ModConfig5.0.xsd">
+            <config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" \
+xsi:noNamespaceSchemaLocation="http://qconsulting.ca/fo3/ModConfig5.0.xsd">
               <moduleName>Name</moduleName>
               <child beep="boop"/>
             </config>"""
@@ -315,25 +316,40 @@ class Test_Conditions:
         self.cond.to_string() == expected
 
     def test_validate(self):
-        warn_msg = "Empty Conditions - This element should have at least one condition present."
+        warn_msg = (
+            "Empty Conditions - This element should have "
+            "at least one condition present."
+        )
         with pytest.warns(base.ValidationWarning, match=warn_msg):
             self.cond.validate()
         nest = base.Conditions()
         self.cond[nest] = None
-        warn_msg = "Empty Conditions - This element is empty and will not be written to prevent errors."
+        warn_msg = (
+            "Empty Conditions - This element is empty and "
+            "will not be written to prevent errors."
+        )
         with pytest.warns(base.ValidationWarning, match=warn_msg):
             self.cond.validate()
         self.cond[None] = ""
-        warn_msg = "Empty Version Dependency - This version dependency is empty and may not work correctly."
+        warn_msg = (
+            "Empty Version Dependency - This version dependency "
+            "is empty and may not work correctly."
+        )
         with pytest.warns(base.ValidationWarning, match=warn_msg):
             self.cond.validate()
         self.cond[""] = base.FileType.ACTIVE
-        warn_msg = "Empty File Dependency - This file dependency depends on no file, may not work correctly."
+        warn_msg = (
+            "Empty File Dependency - This file dependency depends "
+            "on no file, may not work correctly."
+        )
         with pytest.warns(base.ValidationWarning, match=warn_msg):
             self.cond.validate()
         self.cond._tag = "moduleDependencies"
         self.cond["boop"] = "beep"
-        warn_msg = "Useless Flags - Flag boop shouldn't be used here since it can't have been set."
+        warn_msg = (
+            "Useless Flags - Flag boop shouldn't be used here "
+            "since it can't have been set."
+        )
         with pytest.warns(base.ValidationWarning, match=warn_msg):
             self.cond.validate()
 
@@ -487,7 +503,10 @@ class Test_Page:
         with pytest.warns(base.ValidationWarning, match=warn_msg):
             self.page.validate()
         self.page.append(base.Group())
-        warn_msg = "Empty Group - This group is empty and will not be written to prevent errors."
+        warn_msg = (
+            "Empty Group - This group is empty and will "
+            "not be written to prevent errors."
+        )
         with pytest.warns(base.ValidationWarning, match=warn_msg):
             self.page.validate()
 
@@ -667,7 +686,10 @@ class Test_Type:
         assert self.type.to_string() == expected
 
     def test_validate(self):
-        warn_msg = "Empty Type Descriptor - This type descriptor is empty and will never set a type."
+        warn_msg = (
+            "Empty Type Descriptor - This type descriptor "
+            "is empty and will never set a type."
+        )
         with pytest.warns(base.ValidationWarning, match=warn_msg):
             self.type.validate()
 

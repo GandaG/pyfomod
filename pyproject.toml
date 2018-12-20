@@ -20,6 +20,9 @@ requires = [
 ]
 
 [tool.flit.metadata.requires-extra]
+dev = [
+    "tox",
+]
 test = [
     "pytest",
     "pytest-cov",
