@@ -199,6 +199,13 @@ def parse(source, quiet=True):
     root = etree.parse(conf, parser)
     if info is not None:
         root._info = etree.parse(info, parser)
+    elif not quiet:
+        base.warn(
+            "Missing Info",
+            "Info.xml is missing from the fomod subfolder.",
+            None,
+            critical=True,
+        )
     return root
 
 
