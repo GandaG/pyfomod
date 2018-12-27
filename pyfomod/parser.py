@@ -112,6 +112,7 @@ class Target(object):
         else:
             elem = Placeholder(tag, attrib)
         self._stack.append(elem)
+        return elem
 
     def data(self, data):
         self._data = data.strip()
@@ -157,6 +158,7 @@ class Target(object):
             gparent[elem.conditions] = elem.value
         self._data = ""
         self._last = elem
+        return elem
 
     def comment(self, text):
         if text and not self.quiet:
@@ -170,7 +172,20 @@ class Target(object):
         return self._last
 
 
-def parse(source, quiet=True):
+def _iterparse(file_path, target):
+    events = ("start", "end")
+    for event, element in etree.iterparse(file_path, events=events):
+        if event == "start":
+            new_elem = target.start(element.tag, element.attrib)
+            new_elem._lineno = element.sourceline
+            if element.text is not None:
+                target.data(element.text)
+        elif event == "end":
+            target.end(element.tag)
+    return target.close()
+
+
+def parse(source, quiet=True, lineno=False):
     if isinstance(source, (tuple, list)):
         info, conf = source
     else:
@@ -195,11 +210,17 @@ def parse(source, quiet=True):
             etree.parse(conf, etree.XMLParser(schema=schema))
         except etree.XMLSyntaxError as exc:
             base.warn("Syntax Error", str(exc), None, critical=True)
-    parser = etree.XMLParser(target=Target(quiet))
-    root = etree.parse(conf, parser)
-    if info is not None:
-        root._info = etree.parse(info, parser)
-    elif not quiet:
+    parser_target = Target(quiet)
+    if lineno:
+        root = _iterparse(conf, parser_target)
+        if info is not None:
+            root._info = _iterparse(conf, parser_target)
+    else:
+        parser = etree.XMLParser(target=Target(quiet))
+        root = etree.parse(conf, parser)
+        if info is not None:
+            root._info = etree.parse(info, parser)
+    if not quiet and info is None:
         base.warn(
             "Missing Info",
             "Info.xml is missing from the fomod subfolder.",

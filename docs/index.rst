@@ -96,7 +96,7 @@ The last possible item is another `Conditions`, allowing conditions to be nested
 This class functions like a dictionary (has the same methods as the stdlib dict) but
 adding (setting) has a few rules.
 
-To add a version condition, the key must be `None` and the value a string with the 
+To add a version condition, the key must be `None` and the value a string with the
 version::
 
    >>> conditions[None] = "1.0.0"
@@ -141,7 +141,7 @@ Pages
 The `Pages` class is a list of :ref:`page` objects that behaves exactly like a stdlib
 list.
 
-There is a single property, `order` that controls the order in which the `Page`'s 
+There is a single property, `order` that controls the order in which the `Page`'s
 appear. This property is an enum, `Order`, that has the values `ASCENDING`,
 `DESCENDING` and `EXPLICIT`. This orders the pages in this object according to their
 name. To note that only `EXPLICIT` preserves the order in this list.
@@ -168,8 +168,8 @@ list. This class is a named section of a :ref:`page`.
 
 Has the property `name` that holds a string that serves as the page name, the property
 `order` that is identical to the explained in :ref:`pages` and the property `type`,
-an enum `GroupType` that controls which options the user may select in this section, 
-each value is quite self-explanatory: `ALL`, `ANY`, `ATLEASTONE`, `ATMOSTONE`, 
+an enum `GroupType` that controls which options the user may select in this section,
+each value is quite self-explanatory: `ALL`, `ANY`, `ATLEASTONE`, `ATMOSTONE`,
 `EXACTLYONE`.
 
 .. _option:
@@ -211,7 +211,7 @@ Type
 ****
 
 The `Type` class holds a mapping of :ref:`conditions` to `OptionType` and behaves
-exactly like a stdlib dict. 
+exactly like a stdlib dict.
 
 This class finds a type for the corresponding :ref:`option` by finding a fulfilled
 :ref:`conditions` key and using the `OptionType` value.
@@ -225,7 +225,7 @@ File Patterns
 *************
 
 The `FilePatterns` class holds a mapping of :ref:`conditions` to :ref:`files` and
-behaves exactly like a stdlib dict. 
+behaves exactly like a stdlib dict.
 
 This class is used after :ref:`pages` when installing and for any :ref:`conditions`
 keys that are fulfilled installs the corresponding :ref:`files` values.
@@ -270,10 +270,13 @@ can be validated individually or written to a string via the `to_string` method.
 All classes used in *pyfomod* that have a corresponding xml element hold data in similar
 ways:
 
-- All initial attributes when parsing are stored in `self._attrib` - these may be 
+- All initial attributes when parsing are stored in `self._attrib` - these may be
   overwritten when serializing the object;
 - All unused children are stored in `self._children` - this is a dictionary of
   "tag" -> ({attribute dictionary}, "text")
+- The line number of the original element is stored in `self.lineno` if the initial
+  `parse` function was passed the keyword argument `lineno=True`. Otherwise,
+  `self.lineno` is `None`
 
 The **info.xml** file's root is stored apart from **moduleconfig.xml**'s root, at
 `root._info`, where `root` is the object returned by `parse`. Since there is no

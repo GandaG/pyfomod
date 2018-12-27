@@ -266,6 +266,11 @@ class BaseFomod(object):
         self._tag = tag
         self._attrib = attrib
         self._children = OrderedDict()
+        self._lineno = None
+
+    @property
+    def lineno(self):
+        return self._lineno
 
     def to_string(self):
         raise NotImplementedError()
