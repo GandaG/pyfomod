@@ -29,9 +29,7 @@ class ValidationWarning(UserWarning):
 
 
 class CriticalWarning(ValidationWarning):
-    def __init__(self, title, msg, elem, *args, **kwargs):
-        msg += " This may stop users from installing."
-        super().__init__(title, msg, elem, *args, **kwargs)
+    pass
 
 
 def warn(title, msg, elem, critical=False):

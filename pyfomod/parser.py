@@ -162,7 +162,7 @@ class Target(object):
         if text and not self.quiet:
             title = "Comment Detected"
             msg = "There are comments in this fomod, they will be ignored."
-            base.warn(title, msg, None)
+            base.warn(title, msg, None, critical=True)
 
     def close(self):
         assert not self._stack

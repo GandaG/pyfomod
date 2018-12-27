@@ -44,7 +44,7 @@ def test_parse(tmp_path):
         conf_file.write("\n")
     warn_msgs = [
         "Syntax Error - Element 'config': Missing child element(s). Expected is ( "
-        "moduleName ). (<string>, line 0) This may stop users from installing.",
+        "moduleName ). (<string>, line 0)",
         "Comment Detected - There are comments in this fomod, they will be ignored.",
     ]
     with pytest.warns(base.ValidationWarning) as record:
