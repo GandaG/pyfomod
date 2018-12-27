@@ -1,5 +1,13 @@
 ## Changelog
 
+#### 0.5.0
+
+* `CriticalWarning`'s no longer have the extra little message at the end.
+* Detected comments warning is now a `CriticalWarning`.
+* Added a `CriticalWarning` for when *info.xml* is missing.
+* Added a kwarg to `parse`, `lineno`, that when true provides the source
+  line numbers to each element object at the cost of performance.
+
 #### 0.4.0
 
 * Complete project and API rework.
