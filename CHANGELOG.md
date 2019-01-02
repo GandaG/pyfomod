@@ -1,5 +1,9 @@
 ## Changelog
 
+#### 0.6.0
+
+* Added a `CriticalWarning` for non-explicit order attributes.
+
 #### 0.5.0
 
 * `CriticalWarning`'s no longer have the extra little message at the end.
