@@ -779,6 +779,14 @@ class Pages(BaseFomod, HashableSequence):
 
     def validate(self, **callbacks):
         super().validate(**callbacks)
+        if self.order is not Order.EXPLICIT:
+            title = "Non Explicit Page Order"
+            msg = (
+                "This installer has {} order, which reorders "
+                "the pages during installation. Use Explicit "
+                "order to avoid this.".format(self.order.value)
+            )
+            warn(title, msg, self, critical=True)
         for page in self._page_list:
             if page:
                 page.validate(**callbacks)
@@ -871,6 +879,14 @@ class Page(BaseFomod, HashableSequence):
 
     def validate(self, **callbacks):
         super().validate(**callbacks)
+        if self.order is not Order.EXPLICIT:
+            title = "Non Explicit Group Order"
+            msg = (
+                "This page has {} order, which reorders "
+                "the groups during installation. Use Explicit "
+                "order to avoid this.".format(self.order.value)
+            )
+            warn(title, msg, self, critical=True)
         if self._conditions:
             self._conditions.validate(**callbacks)
         for group in self._group_list:
@@ -965,6 +981,14 @@ class Group(BaseFomod, HashableSequence):
 
     def validate(self, **callbacks):
         super().validate(**callbacks)
+        if self.order is not Order.EXPLICIT:
+            title = "Non Explicit Option Order"
+            msg = (
+                "This group has {} order, which reorders "
+                "the options during installation. Use Explicit "
+                "order to avoid this.".format(self.order.value)
+            )
+            warn(title, msg, self, critical=True)
         for option in self._option_list:
             option.validate(**callbacks)
         if not self._name:
