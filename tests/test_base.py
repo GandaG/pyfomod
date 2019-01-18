@@ -313,7 +313,7 @@ class Test_Conditions:
                   </dependencies>
                 </dependencies>"""
         )
-        self.cond.to_string() == expected
+        assert self.cond.to_string() == expected
 
     def test_validate(self):
         warn_msg = (
@@ -410,10 +410,10 @@ class Test_File:
         self.file.src = "src"
         self.file.dst = "dst"
         expected = '<file source="src" destination="dst"/>'
-        self.file.to_string() == expected
+        assert self.file.to_string() == expected
         self.file.dst = ""
         expected = '<file source="src"/>'
-        self.file.to_string() == expected
+        assert self.file.to_string() == expected
 
     def test_validate(self):
         warn_msg = (
@@ -552,6 +552,49 @@ class Test_Group:
     def test_validate(self):
         warn_msg = "Empty Group Name - This group has no name."
         with pytest.warns(base.ValidationWarning, match=warn_msg):
+            self.group.validate()
+
+        self.group.type = base.GroupType.ATLEASTONE
+        warn_msg = (
+            "Not Enough Selectable Options - "
+            "This group needs at least one selectable "
+            "option but none are available."
+        )
+        with pytest.warns(base.CriticalWarning, match=warn_msg):
+            self.group.validate()
+
+        self.group.type = base.GroupType.EXACTLYONE
+        warn_msg = (
+            "Not Enough Selectable Options - "
+            "This group needs exactly one selectable "
+            "option but none are available."
+        )
+        with pytest.warns(base.CriticalWarning, match=warn_msg):
+            self.group.validate()
+
+        option1 = base.Option()
+        option1.type = base.OptionType.REQUIRED
+        self.group.append(option1)
+        option2 = base.Option()
+        option2.type = base.OptionType.REQUIRED
+        self.group.append(option2)
+
+        self.group.type = base.GroupType.ATMOSTONE
+        warn_msg = (
+            "Too Many Required Options - This group "
+            "can have one option selected at most but "
+            "at least two are required."
+        )
+        with pytest.warns(base.CriticalWarning, match=warn_msg):
+            self.group.validate()
+
+        self.group.type = base.GroupType.EXACTLYONE
+        warn_msg = (
+            "Too Many Required Options - This group "
+            "can only have exactly one option selected "
+            "but at least two are required."
+        )
+        with pytest.warns(base.CriticalWarning, match=warn_msg):
             self.group.validate()
 
 

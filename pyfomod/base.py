@@ -989,12 +989,56 @@ class Group(BaseFomod, HashableSequence):
                 "order to avoid this.".format(self.order.value)
             )
             warn(title, msg, self, critical=True)
-        for option in self._option_list:
-            option.validate(**callbacks)
         if not self._name:
             title = "Empty Group Name"
             msg = "This group has no name."
             warn(title, msg, self)
+
+        option_num = len(self._option_list)
+        required_options = 0
+        notusable_options = 0
+
+        for option in self._option_list:
+            option.validate(**callbacks)
+            if isinstance(option.type, OptionType):
+                if option.type is OptionType.REQUIRED:
+                    required_options += 1
+                elif option.type is OptionType.NOTUSABLE:
+                    notusable_options += 1
+            else:
+                if OptionType.REQUIRED in option.type.values():
+                    required_options += 1
+                elif OptionType.NOTUSABLE in option.type.values():
+                    notusable_options += 1
+
+        if notusable_options == option_num:
+            title = "Not Enough Selectable Options"
+            if self.type is GroupType.ATLEASTONE:
+                msg = (
+                    "This group needs at least one selectable "
+                    "option but none are available."
+                )
+                warn(title, msg, self, critical=True)
+            elif self.type is GroupType.EXACTLYONE:
+                msg = (
+                    "This group needs exactly one selectable "
+                    "option but none are available."
+                )
+                warn(title, msg, self, critical=True)
+        elif required_options >= 2:
+            title = "Too Many Required Options"
+            if self.type is GroupType.ATMOSTONE:
+                msg = (
+                    "This group can have one option selected "
+                    "at most but at least two are required."
+                )
+                warn(title, msg, self, critical=True)
+            elif self.type is GroupType.EXACTLYONE:
+                msg = (
+                    "This group can only have exactly one option "
+                    "selected but at least two are required."
+                )
+                warn(title, msg, self, critical=True)
 
 
 class Option(BaseFomod):
