@@ -1,5 +1,11 @@
 ## Changelog
 
+#### 0.7.0
+
+* Added group/option type warnings:
+  * SelectAtMostOne/SelectExactlyOne group with multiple required options;
+  * SelectAtLeastOne/SelectExactlyOne group with no selectable options.
+
 #### 0.6.0
 
 * Added a `CriticalWarning` for non-explicit order attributes.
