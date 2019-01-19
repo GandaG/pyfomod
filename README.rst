@@ -75,3 +75,15 @@ works on any game. It follows a specific package struture with a mandatory
 xml file in a subfolder that follows a specific xml schema and an optional
 xml file that does not. For more information visit the
 `fomod documentation <https://github.com/GandaG/fomod-docs>`_
+
+Development
+-----------
+
+Setup a virtualenv, install `flit` and run::
+
+    flit install -s
+
+This will install an editable version of *pyfomod* and all dev packages.
+To publish::
+
+    flit publish
