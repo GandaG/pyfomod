@@ -44,8 +44,8 @@ def test_parse(tmp_path):
     expected = [
         fomod.ValidationWarning(
             "Syntax Error",
-            "Element 'config': Missing child element(s). Expected is ( "
-            "moduleName ). (<string>, line 0)",
+            "Element 'config': Missing child element(s). "
+            "Expected is ( moduleName ).",
             None,
             critical=True,
         ),

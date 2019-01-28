@@ -409,15 +409,7 @@ class Conditions(BaseFomod, HashableMapping):
             warnings.append(ValidationWarning(title, msg, self, critical=True))
         for key, value in self._map.items():
             if isinstance(key, Conditions):
-                if not key:
-                    title = "Empty Conditions"
-                    msg = (
-                        "This element is empty and will not be written to "
-                        "prevent errors."
-                    )
-                    warnings.append(ValidationWarning(title, msg, key))
-                else:
-                    key.validate(**callbacks)
+                warnings.extend(key.validate(**callbacks))
             elif key is None and not value:
                 title = "Empty Version Dependency"
                 msg = "This version dependency is empty " "and may not work correctly."
@@ -543,8 +535,8 @@ class File(BaseFomod):
         warnings = super().validate(**callbacks)
         if not self.src:
             title = "Empty Source Field"
-            msg = "No source specified, nothing will be installed."
-            warnings.append(ValidationWarning(title, msg, self))
+            msg = "No source specified, this could lead to problems installing."
+            warnings.append(ValidationWarning(title, msg, self, critical=True))
         return warnings
 
 
@@ -608,12 +600,7 @@ class Pages(BaseFomod, HashableSequence):
             )
             warnings.append(ValidationWarning(title, msg, self, critical=True))
         for page in self._page_list:
-            if page:
-                warnings.extend(page.validate(**callbacks))
-            else:
-                title = "Empty Page"
-                msg = "This page is empty and will not be written to prevent errors."
-                warnings.append(ValidationWarning(title, msg, page))
+            warnings.extend(page.validate(**callbacks))
         return warnings
 
 
@@ -700,6 +687,14 @@ class Page(BaseFomod, HashableSequence):
 
     def validate(self, **callbacks):
         warnings = super().validate(**callbacks)
+        if not self:
+            title = "Empty Page"
+            msg = "This page is empty."
+            warnings.append(ValidationWarning(title, msg, self))
+        if not self._name:
+            title = "Empty Page Name"
+            msg = "This page has no name."
+            warnings.append(ValidationWarning(title, msg, self))
         if self.order is not Order.EXPLICIT:
             title = "Non Explicit Group Order"
             msg = (
@@ -711,16 +706,7 @@ class Page(BaseFomod, HashableSequence):
         if self._conditions:
             warnings.extend(self._conditions.validate(**callbacks))
         for group in self._group_list:
-            if group:
-                warnings.extend(group.validate(**callbacks))
-            else:
-                title = "Empty Group"
-                msg = "This group is empty and will not be written to prevent errors."
-                warnings.append(ValidationWarning(title, msg, group))
-        if not self._name:
-            title = "Empty Page Name"
-            msg = "This page has no name."
-            warnings.append(ValidationWarning(title, msg, self))
+            warnings.extend(group.validate(**callbacks))
         return warnings
 
 
@@ -803,6 +789,14 @@ class Group(BaseFomod, HashableSequence):
 
     def validate(self, **callbacks):
         warnings = super().validate(**callbacks)
+        if not self:
+            title = "Empty Group"
+            msg = "This group is empty."
+            warnings.append(ValidationWarning(title, msg, self))
+        if not self._name:
+            title = "Empty Group Name"
+            msg = "This group has no name."
+            warnings.append(ValidationWarning(title, msg, self))
         if self.order is not Order.EXPLICIT:
             title = "Non Explicit Option Order"
             msg = (
@@ -811,10 +805,6 @@ class Group(BaseFomod, HashableSequence):
                 "order to avoid this.".format(self.order.value)
             )
             warnings.append(ValidationWarning(title, msg, self, critical=True))
-        if not self._name:
-            title = "Empty Group Name"
-            msg = "This group has no name."
-            warnings.append(ValidationWarning(title, msg, self))
 
         option_num = len(self._option_list)
         required_options = 0

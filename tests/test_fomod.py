@@ -187,7 +187,7 @@ class TestConditions:
     def test_validate(self):
         expected = fomod.ValidationWarning(
             "Empty Conditions",
-            "This element should have " "at least one condition present.",
+            "This element should have at least one condition present.",
             self.cond,
             critical=True,
         )
@@ -196,21 +196,22 @@ class TestConditions:
         self.cond[nest] = None
         expected = fomod.ValidationWarning(
             "Empty Conditions",
-            "This element is empty and " "will not be written to prevent errors.",
+            "This element should have at least one condition present.",
             nest,
+            critical=True,
         )
         assert expected in self.cond.validate()
         self.cond[None] = ""
         expected = fomod.ValidationWarning(
             "Empty Version Dependency",
-            "This version dependency " "is empty and may not work correctly.",
+            "This version dependency is empty and may not work correctly.",
             self.cond,
         )
         assert expected in self.cond.validate()
         self.cond[""] = fomod.FileType.ACTIVE
         expected = fomod.ValidationWarning(
             "Empty File Dependency",
-            "This file dependency depends " "on no file, may not work correctly.",
+            "This file dependency depends on no file, may not work correctly.",
             self.cond,
         )
         assert expected in self.cond.validate()
@@ -218,7 +219,7 @@ class TestConditions:
         self.cond["boop"] = "beep"
         expected = fomod.ValidationWarning(
             "Useless Flags",
-            "Flag boop shouldn't be used here " "since it can't have been set.",
+            "Flag boop shouldn't be used here since it can't have been set.",
             self.cond,
         )
         assert expected in self.cond.validate()
@@ -288,8 +289,9 @@ class TestFile:
     def test_validate(self):
         expected = fomod.ValidationWarning(
             "Empty Source Field",
-            "No source specified, nothing will be installed.",
+            "No source specified, this could lead to problems installing.",
             self.file,
+            critical=True,
         )
         assert expected in self.file.validate()
 
@@ -319,15 +321,6 @@ class TestPages:
             )
         )
         assert self.pages.to_string() == expected
-
-    def test_validate(self):
-        self.pages.append(fomod.Page())
-        expected = fomod.ValidationWarning(
-            "Empty Page",
-            "This page is empty and will not be written to prevent errors.",
-            self.pages[0],
-        )
-        assert expected in self.pages.validate()
 
 
 class TestPage:
@@ -375,11 +368,8 @@ class TestPage:
             "Empty Page Name", "This page has no name.", self.page
         )
         assert expected in self.page.validate()
-        self.page.append(fomod.Group())
         expected = fomod.ValidationWarning(
-            "Empty Group",
-            "This group is empty and will not be written to prevent errors.",
-            self.page[0],
+            "Empty Page", "This page is empty.", self.page
         )
         assert expected in self.page.validate()
 
@@ -423,6 +413,10 @@ class TestGroup:
         assert self.group.to_string() == expected
 
     def test_validate(self):
+        expected = fomod.ValidationWarning(
+            "Empty Group", "This group is empty.", self.group
+        )
+        assert expected in self.group.validate()
         expected = fomod.ValidationWarning(
             "Empty Group Name", "This group has no name.", self.group
         )

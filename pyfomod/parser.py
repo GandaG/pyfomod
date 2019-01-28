@@ -228,9 +228,10 @@ def parse(source, warnings=None, lineno=False):
         try:
             etree.parse(conf, etree.XMLParser(schema=schema))
         except etree.XMLSyntaxError as exc:
-            warnings.append(
-                ValidationWarning("Syntax Error", str(exc), None, critical=True)
-            )
+            msg = str(exc)
+            if str(exc).endswith(" (<string>, line 0)"):
+                msg = msg[:-19]
+            warnings.append(ValidationWarning("Syntax Error", msg, None, critical=True))
     parser_target = Target(warnings)
     if lineno:
         root = _iterparse(conf, parser_target)
