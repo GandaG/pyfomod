@@ -20,7 +20,27 @@ from pathlib import Path
 
 from lxml import etree
 
-from . import base
+from .fomod import (
+    Conditions,
+    ConditionType,
+    File,
+    FilePatterns,
+    Files,
+    FileType,
+    Flags,
+    Group,
+    GroupType,
+    Info,
+    Name,
+    Option,
+    OptionType,
+    Order,
+    Page,
+    Pages,
+    Root,
+    Type,
+)
+from .warnings import warn
 
 SCHEMA_PATH = Path(__file__).parent / "fomod.xsd"
 
@@ -47,65 +67,64 @@ class Target(object):
         self._last = None
 
     def start(self, tag, attrib):
-        elem = None
         attrib = dict(attrib)
         with suppress(IndexError):
             parent = self._stack[-1]
         with suppress(IndexError):
             gparent = self._stack[-2]
         if tag == "config":
-            elem = base.Root(attrib)
+            elem = Root(attrib)
         elif tag == "fomod":
-            elem = base.Info(attrib)
+            elem = Info(attrib)
         elif tag == "moduleName":
-            elem = base.Name(attrib)
+            elem = Name(attrib)
             parent._name = elem
         elif tag in ("moduleDependencies", "dependencies", "visible"):
-            elem = base.Conditions(attrib)
-            elem.type = base.ConditionType(attrib.get("operator", "And"))
-            if isinstance(parent, base.Conditions):  # nested dependencies
+            elem = Conditions(attrib)
+            elem.type = ConditionType(attrib.get("operator", "And"))
+            if isinstance(parent, Conditions):  # nested dependencies
                 parent[elem] = None
             else:
                 parent.conditions = elem
         elif tag == "requiredInstallFiles":
-            elem = base.Files(attrib)
+            elem = Files(attrib)
             parent.files = elem
         elif tag in ("file", "folder"):
-            elem = base.File(tag, attrib)
+            elem = File(tag, attrib)
             elem.src = attrib["source"]
             elem.dst = attrib.get("destination", "")
             parent._file_list.append(elem)
         elif tag == "installSteps":
-            elem = base.Pages(attrib)
-            elem.order = base.Order(attrib.get("order", "Ascending"))
+            elem = Pages(attrib)
+            elem.order = Order(attrib.get("order", "Ascending"))
             parent.pages = elem
         elif tag == "installStep":
-            elem = base.Page(attrib)
+            elem = Page(attrib)
             elem.name = attrib["name"]
             parent._page_list.append(elem)
         elif tag == "group":
-            elem = base.Group(attrib)
+            elem = Group(attrib)
             elem.name = attrib["name"]
-            elem.type = base.GroupType(attrib["type"])
+            elem.type = GroupType(attrib["type"])
             gparent._group_list.append(elem)
         elif tag == "plugin":
-            elem = base.Option(attrib)
+            elem = Option(attrib)
             elem.name = attrib["name"]
             gparent._option_list.append(elem)
         elif tag == "files":
-            elem = base.Files(attrib)
-            if isinstance(parent, base.Option):
+            elem = Files(attrib)
+            if isinstance(parent, Option):
                 parent.files = elem
             else:  # under pattern tag
                 parent.value = elem
         elif tag == "conditionFlags":
-            elem = base.Flags(attrib)
+            elem = Flags(attrib)
             parent.flags = elem
         elif tag == "dependencyType":
-            elem = base.Type(attrib)
+            elem = Type(attrib)
             gparent.type = elem
         elif tag == "conditionalFileInstalls":
-            elem = base.FilePatterns(attrib)
+            elem = FilePatterns(attrib)
             parent.file_patterns = elem
         elif tag == "pattern":
             elem = PatternPlaceholder(attrib)
@@ -130,7 +149,7 @@ class Target(object):
             elem.name = self._data
         elif tag == "fileDependency":
             fname = elem._attrib["file"]
-            ftype = base.FileType(elem._attrib["state"])
+            ftype = FileType(elem._attrib["state"])
             parent[fname] = ftype
         elif tag == "flagDependency":
             fname = elem._attrib["flag"]
@@ -140,7 +159,7 @@ class Target(object):
             parent[None] = elem._attrib["version"]
         elif tag in ("optionalFileGroups", "plugins"):
             order = elem._attrib.get("order", "Ascending")
-            parent._order = base.Order(order)
+            parent._order = Order(order)
         elif tag == "description":
             parent._description = self._data
         elif tag == "image":
@@ -148,12 +167,12 @@ class Target(object):
         elif tag == "flag":
             parent._map[elem._attrib["name"]] = self._data
         elif tag == "type":
-            if isinstance(gparent, base.Option):
-                gparent._type = base.OptionType(elem._attrib["name"])
+            if isinstance(gparent, Option):
+                gparent._type = OptionType(elem._attrib["name"])
             else:  # under pattern tag
-                parent.value = base.OptionType(elem._attrib["name"])
+                parent.value = OptionType(elem._attrib["name"])
         elif tag == "defaultType":
-            parent._default = base.OptionType(elem._attrib["name"])
+            parent._default = OptionType(elem._attrib["name"])
         elif tag == "pattern":
             gparent[elem.conditions] = elem.value
         self._data = ""
@@ -164,11 +183,11 @@ class Target(object):
         if text and not self.quiet:
             title = "Comment Detected"
             msg = "There are comments in this fomod, they will be ignored."
-            base.warn(title, msg, None, critical=True)
+            warn(title, msg, None, critical=True)
 
     def close(self):
         assert not self._stack
-        assert isinstance(self._last, (base.Root, base.Info))
+        assert isinstance(self._last, (Root, Info))
         return self._last
 
 
@@ -209,7 +228,7 @@ def parse(source, quiet=True, lineno=False):
         try:
             etree.parse(conf, etree.XMLParser(schema=schema))
         except etree.XMLSyntaxError as exc:
-            base.warn("Syntax Error", str(exc), None, critical=True)
+            warn("Syntax Error", str(exc), None, critical=True)
     parser_target = Target(quiet)
     if lineno:
         root = _iterparse(conf, parser_target)
@@ -221,7 +240,7 @@ def parse(source, quiet=True, lineno=False):
         if info is not None:
             root._info = etree.parse(info, parser)
     if not quiet and info is None:
-        base.warn(
+        warn(
             "Missing Info",
             "Info.xml is missing from the fomod subfolder.",
             None,

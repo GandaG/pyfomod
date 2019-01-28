@@ -2,7 +2,7 @@ import textwrap
 from pathlib import Path
 
 import pytest
-from pyfomod import base, parser
+from pyfomod import parser, warnings
 
 PACKAGE_PATH = Path(__file__).parent / "package_test"
 INFO_PATH = Path(PACKAGE_PATH, "fomod", "info.xml")
@@ -47,7 +47,7 @@ def test_parse(tmp_path):
         "moduleName ). (<string>, line 0)",
         "Comment Detected - There are comments in this fomod, they will be ignored.",
     ]
-    with pytest.warns(base.ValidationWarning) as record:
+    with pytest.warns(warnings.ValidationWarning) as record:
         parser.parse((None, str(conf_path)), quiet=False)
         assert str(record[0].message) == warn_msgs[0]
         assert str(record[1].message) == warn_msgs[1]

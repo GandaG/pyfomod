@@ -38,7 +38,7 @@ __all__ = [
     "write",
 ]
 
-from .base import (
+from .fomod import (
     Conditions,
     ConditionType,
     FilePatterns,
@@ -55,6 +55,6 @@ from .base import (
     Pages,
     Root,
     Type,
-    warn,
 )
 from .parser import parse, write
+from .warnings import warn
