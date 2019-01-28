@@ -1,8 +1,7 @@
 import textwrap
 from collections import OrderedDict
 
-import pytest
-from pyfomod import fomod, warnings
+from pyfomod import fomod
 
 
 class TestBaseFomod:
@@ -94,16 +93,22 @@ xsi:noNamespaceSchemaLocation="http://qconsulting.ca/fo3/ModConfig5.0.xsd">
         assert self.root.to_string() == expected
 
     def test_validate(self):
-        warn_msg = "Empty Installer - This fomod is empty, nothing will be installed"
-        with pytest.warns(warnings.ValidationWarning, match=warn_msg):
-            self.root.validate()
+        expected = fomod.ValidationWarning(
+            "Empty Installer",
+            "This fomod is empty, nothing will be installed.",
+            self.root,
+        )
+        assert expected in self.root.validate()
         page = fomod.Page()
         page.conditions["boop"] = "beep"
         page.append(fomod.Group())
         self.root.pages.append(page)
-        warn_msg = 'Impossible Flags - The flag "boop" is never created or set'
-        with pytest.warns(warnings.ValidationWarning, match=warn_msg):
-            self.root.validate()
+        expected = fomod.ValidationWarning(
+            "Impossible Flags",
+            'The flag "boop" is never created or set.',
+            page.conditions,
+        )
+        assert expected in self.root.validate()
 
 
 class TestInfo:
@@ -144,9 +149,10 @@ class TestName:
         assert self.name.to_string() == expected
 
     def test_validate(self):
-        warn_msg = "Missing Installer Name - This fomod does not have a name."
-        with pytest.warns(warnings.ValidationWarning, match=warn_msg):
-            self.name.validate()
+        expected = fomod.ValidationWarning(
+            "Missing Installer Name", "This fomod does not have a name.", self.name
+        )
+        assert expected in self.name.validate()
 
 
 class TestConditions:
@@ -179,42 +185,43 @@ class TestConditions:
         assert self.cond.to_string() == expected
 
     def test_validate(self):
-        warn_msg = (
-            "Empty Conditions - This element should have "
-            "at least one condition present."
+        expected = fomod.ValidationWarning(
+            "Empty Conditions",
+            "This element should have " "at least one condition present.",
+            self.cond,
+            critical=True,
         )
-        with pytest.warns(warnings.ValidationWarning, match=warn_msg):
-            self.cond.validate()
+        assert expected in self.cond.validate()
         nest = fomod.Conditions()
         self.cond[nest] = None
-        warn_msg = (
-            "Empty Conditions - This element is empty and "
-            "will not be written to prevent errors."
+        expected = fomod.ValidationWarning(
+            "Empty Conditions",
+            "This element is empty and " "will not be written to prevent errors.",
+            nest,
         )
-        with pytest.warns(warnings.ValidationWarning, match=warn_msg):
-            self.cond.validate()
+        assert expected in self.cond.validate()
         self.cond[None] = ""
-        warn_msg = (
-            "Empty Version Dependency - This version dependency "
-            "is empty and may not work correctly."
+        expected = fomod.ValidationWarning(
+            "Empty Version Dependency",
+            "This version dependency " "is empty and may not work correctly.",
+            self.cond,
         )
-        with pytest.warns(warnings.ValidationWarning, match=warn_msg):
-            self.cond.validate()
+        assert expected in self.cond.validate()
         self.cond[""] = fomod.FileType.ACTIVE
-        warn_msg = (
-            "Empty File Dependency - This file dependency depends "
-            "on no file, may not work correctly."
+        expected = fomod.ValidationWarning(
+            "Empty File Dependency",
+            "This file dependency depends " "on no file, may not work correctly.",
+            self.cond,
         )
-        with pytest.warns(warnings.ValidationWarning, match=warn_msg):
-            self.cond.validate()
+        assert expected in self.cond.validate()
         self.cond._tag = "moduleDependencies"
         self.cond["boop"] = "beep"
-        warn_msg = (
-            "Useless Flags - Flag boop shouldn't be used here "
-            "since it can't have been set."
+        expected = fomod.ValidationWarning(
+            "Useless Flags",
+            "Flag boop shouldn't be used here " "since it can't have been set.",
+            self.cond,
         )
-        with pytest.warns(warnings.ValidationWarning, match=warn_msg):
-            self.cond.validate()
+        assert expected in self.cond.validate()
 
 
 class TestFiles:
@@ -279,11 +286,12 @@ class TestFile:
         assert self.file.to_string() == expected
 
     def test_validate(self):
-        warn_msg = (
-            "Empty Source Field - No source specified, nothing will be installed."
+        expected = fomod.ValidationWarning(
+            "Empty Source Field",
+            "No source specified, nothing will be installed.",
+            self.file,
         )
-        with pytest.warns(warnings.ValidationWarning, match=warn_msg):
-            self.file.validate()
+        assert expected in self.file.validate()
 
 
 class TestPages:
@@ -314,11 +322,12 @@ class TestPages:
 
     def test_validate(self):
         self.pages.append(fomod.Page())
-        warn_msg = (
-            "Empty Page - This page is empty and will not be written to prevent errors."
+        expected = fomod.ValidationWarning(
+            "Empty Page",
+            "This page is empty and will not be written to prevent errors.",
+            self.pages[0],
         )
-        with pytest.warns(warnings.ValidationWarning, match=warn_msg):
-            self.pages.validate()
+        assert expected in self.pages.validate()
 
 
 class TestPage:
@@ -362,16 +371,17 @@ class TestPage:
         assert self.page.to_string() == expected
 
     def test_validate(self):
-        warn_msg = "Empty Page Name - This page has no name."
-        with pytest.warns(warnings.ValidationWarning, match=warn_msg):
-            self.page.validate()
-        self.page.append(fomod.Group())
-        warn_msg = (
-            "Empty Group - This group is empty and will "
-            "not be written to prevent errors."
+        expected = fomod.ValidationWarning(
+            "Empty Page Name", "This page has no name.", self.page
         )
-        with pytest.warns(warnings.ValidationWarning, match=warn_msg):
-            self.page.validate()
+        assert expected in self.page.validate()
+        self.page.append(fomod.Group())
+        expected = fomod.ValidationWarning(
+            "Empty Group",
+            "This group is empty and will not be written to prevent errors.",
+            self.page[0],
+        )
+        assert expected in self.page.validate()
 
 
 class TestGroup:
@@ -413,27 +423,29 @@ class TestGroup:
         assert self.group.to_string() == expected
 
     def test_validate(self):
-        warn_msg = "Empty Group Name - This group has no name."
-        with pytest.warns(warnings.ValidationWarning, match=warn_msg):
-            self.group.validate()
+        expected = fomod.ValidationWarning(
+            "Empty Group Name", "This group has no name.", self.group
+        )
+        assert expected in self.group.validate()
 
         self.group.type = fomod.GroupType.ATLEASTONE
-        warn_msg = (
-            "Not Enough Selectable Options - "
+        expected = fomod.ValidationWarning(
+            "Not Enough Selectable Options",
             "This group needs at least one selectable "
-            "option but none are available."
+            "option but none are available.",
+            self.group,
+            critical=True,
         )
-        with pytest.warns(warnings.CriticalWarning, match=warn_msg):
-            self.group.validate()
+        assert expected in self.group.validate()
 
         self.group.type = fomod.GroupType.EXACTLYONE
-        warn_msg = (
-            "Not Enough Selectable Options - "
-            "This group needs exactly one selectable "
-            "option but none are available."
+        expected = fomod.ValidationWarning(
+            "Not Enough Selectable Options",
+            "This group needs exactly one selectable " "option but none are available.",
+            self.group,
+            critical=True,
         )
-        with pytest.warns(warnings.CriticalWarning, match=warn_msg):
-            self.group.validate()
+        assert expected in self.group.validate()
 
         option1 = fomod.Option()
         option1.type = fomod.OptionType.REQUIRED
@@ -443,22 +455,24 @@ class TestGroup:
         self.group.append(option2)
 
         self.group.type = fomod.GroupType.ATMOSTONE
-        warn_msg = (
-            "Too Many Required Options - This group "
-            "can have one option selected at most but "
-            "at least two are required."
+        expected = fomod.ValidationWarning(
+            "Too Many Required Options",
+            "This group can have one option selected "
+            "at most but at least two are required.",
+            self.group,
+            critical=True,
         )
-        with pytest.warns(warnings.CriticalWarning, match=warn_msg):
-            self.group.validate()
+        assert expected in self.group.validate()
 
         self.group.type = fomod.GroupType.EXACTLYONE
-        warn_msg = (
-            "Too Many Required Options - This group "
-            "can only have exactly one option selected "
-            "but at least two are required."
+        expected = fomod.ValidationWarning(
+            "Too Many Required Options",
+            "This group can only have exactly one "
+            "option selected but at least two are required.",
+            self.group,
+            critical=True,
         )
-        with pytest.warns(warnings.CriticalWarning, match=warn_msg):
-            self.group.validate()
+        assert expected in self.group.validate()
 
 
 class TestOption:
@@ -532,17 +546,22 @@ class TestOption:
         assert self.option.to_string() == expected
 
     def test_validate(self):
-        warn_msg = "Empty Option Name - This option has no name."
-        with pytest.warns(warnings.ValidationWarning, match=warn_msg):
-            self.option.validate()
-        warn_msg = "Empty Option Description - This option has no description."
-        with pytest.warns(warnings.ValidationWarning, match=warn_msg):
-            self.option.validate()
-        warn_msg = (
-            "Option Does Nothing - This option installs no files and sets no flags."
-        )
-        with pytest.warns(warnings.ValidationWarning, match=warn_msg):
-            self.option.validate()
+        expected = [
+            fomod.ValidationWarning(
+                "Empty Option Name", "This option has no name.", self.option
+            ),
+            fomod.ValidationWarning(
+                "Empty Option Description",
+                "This option has no description.",
+                self.option,
+            ),
+            fomod.ValidationWarning(
+                "Option Does Nothing",
+                "This option installs no files and sets no flags.",
+                self.option,
+            ),
+        ]
+        assert self.option.validate() == expected
 
 
 class TestFlags:
@@ -592,12 +611,13 @@ class TestType:
         assert self.type.to_string() == expected
 
     def test_validate(self):
-        warn_msg = (
-            "Empty Type Descriptor - This type descriptor "
-            "is empty and will never set a type."
+        expected = fomod.ValidationWarning(
+            "Empty Type Descriptor",
+            "This type descriptor is empty and will never set a type.",
+            self.type,
+            critical=True,
         )
-        with pytest.warns(warnings.ValidationWarning, match=warn_msg):
-            self.type.validate()
+        assert expected in self.type.validate()
 
 
 class TestFilePatterns:

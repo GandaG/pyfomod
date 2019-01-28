@@ -33,7 +33,7 @@ __all__ = [
     "Pages",
     "Root",
     "Type",
-    "warn",
+    "ValidationWarning",
     "parse",
     "write",
 ]
@@ -55,6 +55,6 @@ from .fomod import (
     Pages,
     Root,
     Type,
+    ValidationWarning,
 )
 from .parser import parse, write
-from .warnings import warn

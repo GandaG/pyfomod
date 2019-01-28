@@ -1,8 +1,7 @@
 import textwrap
 from pathlib import Path
 
-import pytest
-from pyfomod import parser, warnings
+from pyfomod import fomod, parser
 
 PACKAGE_PATH = Path(__file__).parent / "package_test"
 INFO_PATH = Path(PACKAGE_PATH, "fomod", "info.xml")
@@ -42,12 +41,21 @@ def test_parse(tmp_path):
     with conf_path.open("w") as conf_file:
         conf_file.write(content)
         conf_file.write("\n")
-    warn_msgs = [
-        "Syntax Error - Element 'config': Missing child element(s). Expected is ( "
-        "moduleName ). (<string>, line 0)",
-        "Comment Detected - There are comments in this fomod, they will be ignored.",
+    expected = [
+        fomod.ValidationWarning(
+            "Syntax Error",
+            "Element 'config': Missing child element(s). Expected is ( "
+            "moduleName ). (<string>, line 0)",
+            None,
+            critical=True,
+        ),
+        fomod.ValidationWarning(
+            "Comment Detected",
+            "There are comments in this fomod, they will be ignored.",
+            None,
+            critical=True,
+        ),
     ]
-    with pytest.warns(warnings.ValidationWarning) as record:
-        parser.parse((None, str(conf_path)), quiet=False)
-        assert str(record[0].message) == warn_msgs[0]
-        assert str(record[1].message) == warn_msgs[1]
+    warnings = []
+    parser.parse((None, str(conf_path)), warnings=warnings)
+    assert warnings == expected

@@ -39,8 +39,8 @@ from .fomod import (
     Pages,
     Root,
     Type,
+    ValidationWarning,
 )
-from .warnings import warn
 
 SCHEMA_PATH = Path(__file__).parent / "fomod.xsd"
 
@@ -60,8 +60,8 @@ class PatternPlaceholder(Placeholder):
 
 
 class Target(object):
-    def __init__(self, quiet=True):
-        self.quiet = quiet
+    def __init__(self, warnings=None):
+        self.warnings = warnings
         self._stack = []
         self._data = ""
         self._last = None
@@ -180,10 +180,10 @@ class Target(object):
         return elem
 
     def comment(self, text):
-        if text and not self.quiet:
+        if text and self.warnings is not None:
             title = "Comment Detected"
             msg = "There are comments in this fomod, they will be ignored."
-            warn(title, msg, None, critical=True)
+            self.warnings.append(ValidationWarning(title, msg, None, critical=True))
 
     def close(self):
         assert not self._stack
@@ -204,7 +204,7 @@ def _iterparse(file_path, target):
     return target.close()
 
 
-def parse(source, quiet=True, lineno=False):
+def parse(source, warnings=None, lineno=False):
     if isinstance(source, (tuple, list)):
         info, conf = source
     else:
@@ -223,28 +223,32 @@ def parse(source, quiet=True, lineno=False):
             )
         else:
             conf = str(conf)
-    if not quiet:
+    if warnings is not None:
         schema = etree.XMLSchema(etree.parse(str(SCHEMA_PATH)))
         try:
             etree.parse(conf, etree.XMLParser(schema=schema))
         except etree.XMLSyntaxError as exc:
-            warn("Syntax Error", str(exc), None, critical=True)
-    parser_target = Target(quiet)
+            warnings.append(
+                ValidationWarning("Syntax Error", str(exc), None, critical=True)
+            )
+    parser_target = Target(warnings)
     if lineno:
         root = _iterparse(conf, parser_target)
         if info is not None:
             root._info = _iterparse(conf, parser_target)
     else:
-        parser = etree.XMLParser(target=Target(quiet))
+        parser = etree.XMLParser(target=Target(warnings))
         root = etree.parse(conf, parser)
         if info is not None:
             root._info = etree.parse(info, parser)
-    if not quiet and info is None:
-        warn(
-            "Missing Info",
-            "Info.xml is missing from the fomod subfolder.",
-            None,
-            critical=True,
+    if None not in (info, warnings):
+        warnings.append(
+            ValidationWarning(
+                "Missing Info",
+                "Info.xml is missing from the fomod subfolder.",
+                None,
+                critical=True,
+            )
         )
     return root
 
