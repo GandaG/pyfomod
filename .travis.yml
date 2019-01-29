@@ -3,22 +3,28 @@ dist: xenial
 language: python
 
 python:
-    - 3.6
-    - 3.6-dev
-    - 3.7
-    - 3.7-dev
-    - nightly
+  - 3.6
+  - 3.6-dev
+  - 3.7
+  - 3.7-dev
+  - nightly
 
 jobs:
-    fast_finish: true
-    allow_failures:
-        - python: 3.7-dev
-        - python: nightly
+  fast_finish: true
+  allow_failures:
+    - python: 3.7-dev
+    - python: nightly
 
 install:
-    - pip install -U pip
-    - pip install flit
-    - flit install
+  - pip install -U pip
+  - pip install flit
+  - flit install
 
 script:
-    - tox -e check,py
+  - tox -e check,py
+
+deploy:
+  provider: script
+  script: flit publish
+  on:
+    tags: true
