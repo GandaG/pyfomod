@@ -22,15 +22,7 @@ a physical installer simply pass the package path to the *parse* function::
    >>> root = pyfomod.parse("package")
 
 This *root* is the entire root of the fomod installer, see :ref:`root`. There may
-be errors with the physical files but since *pyfomod* can safely ignore them and
-still read the installer no warnings are produced. To get warnings for possible
-critical errors, pass a second argument to `parse`::
-
-   >>> root = pyfomod.parse("package")
-   ValidationWarning: Comment Detected - There are comments in this fomod, they will be ignored.
-
-As you can see above, comments are unfortunately ignored and won't be written. For more
-information on warnings and their importance, see :ref:`validation`
+be errors with the physical files but  *pyfomod* can safely ignore them.
 
 If the installer is not packaged in a conventional manner, you may also pass a tuple or
 list with the file paths. The paths must be strings and be in the order: **info.xml**,
@@ -57,6 +49,7 @@ for every operation.
 In here the following simple read/write properties are defined:
 
 - `name` - (string) the package's name;
+- `image` - (string) the path to the package's image;
 - `author` - (string) the package's author;
 - `version` - (string) the package's version;
 - `description` - (string) the package's description;
@@ -181,12 +174,12 @@ The `Option` class represents a single option the user can select.
 
 This class has the following properties:
 
-- name (string) - the option's short text;
-- description (string) - the option's long description;
-- image (string) - a path to an image relative to the package root;
-- files (:ref:`files`) - the files/folders to install if this option is selected;
-- flags (:ref:`flags`) - the flags to set if this option is selected;
-- type (enum `OptionType` or :ref:`type`) - the option type, it is recommended to use
+- `name` (string) - the option's short text;
+- `description` (string) - the option's long description;
+- `image` (string) - a path to an image relative to the package root;
+- `files` (:ref:`files`) - the files/folders to install if this option is selected;
+- `flags` (:ref:`flags`) - the flags to set if this option is selected;
+- `type` (enum `OptionType` or :ref:`type`) - the option type, it is recommended to use
   the enum but :ref:`type` may be used for complex cases.
 
 The enum `OptionType` has the possible values:
@@ -239,22 +232,26 @@ Validation
 mistakes and incorrect values that, while valid, may lead to unexpected behaviour
 during user installation.
 
-When an error is found a `ValidationWarning` is sent. If the error means the fomod
-will probably not be able to be parsed by mod managers then a `CriticalWarning`, a
-`ValidationWarning` subclass, will be sent instead.
+You can check for warnings during parsing by passing a list to `parse`::
 
-As shown in :ref:`parsewrite`, the installer can be validated during parsing for two
-specific errors - presence of comments in the xml file and schema errors. The presence
-of comments is considered an error because *pyfomod* does not preserve them. Schema
-errors is content that is not expected by the fomod schema and some mod managers may
-not try to install at all. *pyfomod* ignores and corrects these errors when writing.
+    >>> warning_list = []
+    >>> root = pyfomod.parse("package", warnings=warning_list)
 
-The installer can also be validated at any time for other, value-specific errors. All
-classes above mentioned have a `validate` method that is used to recursively validate
-the installer (or parts of it). This method accepts keyword arguments with the keys
-being class name strings and the values being a list of functions. The class name string
-will be the class type where all the functions in the value list will run and the
-functions must take the first argument as the instance where it is running.
+You can also check for warnings during runtime by calling the `validate()` method
+on any fomod object - this will validate the object itself and any children::
+
+    >>> warning_list = root.validate()
+
+Note that the possible errors produced in these two situations are different, so if
+you want to find every possible warning be sure to use both.
+
+The warnings are instances of `ValidateWarning`, which has the following attributes:
+
+- `title` - (string) A suitable warning title;
+- `msg` - (string) A message explaining the warning;
+- `elem` - (object) The fomod object this warning refers to;
+- `critical` - (boolean) Whether this warning refers to something that may interfere with
+  the installation process.
 
 Low-Level Access
 ****************
