@@ -30,6 +30,7 @@ from .fomod import (
     Flags,
     Group,
     GroupType,
+    Image,
     Info,
     Name,
     Option,
@@ -79,6 +80,9 @@ class Target(object):
         elif tag == "moduleName":
             elem = Name(attrib)
             parent._name = elem
+        elif tag == "moduleImage":
+            elem = Image(attrib)
+            parent._image = elem
         elif tag in ("moduleDependencies", "dependencies", "visible"):
             elem = Conditions(attrib)
             elem.type = ConditionType(attrib.get("operator", "And"))

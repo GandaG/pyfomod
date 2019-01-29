@@ -29,6 +29,11 @@ class TestRoot:
         assert self.root.name == "beep"
         assert self.root._name.name == "beep"
 
+    def test_image(self):
+        self.root.image = "beep"
+        assert self.root.image == "beep"
+        assert self.root._image._attrib["path"] == "beep"
+
     def test_author(self):
         self.root.author = "boop"
         assert self.root.author == "boop"
@@ -80,14 +85,14 @@ class TestRoot:
         assert self.root._file_patterns is test
 
     def test_to_string(self):
-        self.root._children = OrderedDict([("child", ({"beep": "boop"}, ""))])
         self.root.name = "Name"
+        self.root.image = "path/to/image.png"
         expected = textwrap.dedent(
             """\
             <config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" \
 xsi:noNamespaceSchemaLocation="http://qconsulting.ca/fo3/ModConfig5.0.xsd">
               <moduleName>Name</moduleName>
-              <child beep="boop"/>
+              <moduleImage path="path/to/image.png"/>
             </config>"""
         )
         assert self.root.to_string() == expected
@@ -153,6 +158,16 @@ class TestName:
             "Missing Installer Name", "This fomod does not have a name.", self.name
         )
         assert expected in self.name.validate()
+
+
+class TestImage:
+    def setup_method(self):
+        self.image = fomod.Image()
+
+    def test_to_string(self):
+        self.image._attrib = {"path": "path/to/image.png"}
+        expected = '<moduleImage path="path/to/image.png"/>'
+        assert self.image.to_string() == expected
 
 
 class TestConditions:

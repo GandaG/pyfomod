@@ -127,6 +127,7 @@ class Root(BaseFomod):
         }
         self._info = Info()
         self._name = Name()
+        self._image = Image()
         self._conditions = Conditions()
         self._conditions._tag = "moduleDependencies"
         self._files = Files()
@@ -143,6 +144,16 @@ class Root(BaseFomod):
         if not isinstance(value, str):
             raise ValueError("Value should be string.")
         self._name.name = value
+
+    @property
+    def image(self):
+        return self._image._attrib.get("path", "")
+
+    @image.setter
+    def image(self, value):
+        if not isinstance(value, str):
+            raise ValueError("Value should be string.")
+        self._image._attrib["path"] = value
 
     @property
     def author(self):
@@ -230,7 +241,8 @@ class Root(BaseFomod):
         children = ""
         head = "<{}{}>".format(self._tag, self._write_attributes(self._attrib))
         children += "\n" + self._name.to_string()
-        children += self._write_children()  # moduleImage
+        if self._image._attrib:
+            children += "\n" + self._image.to_string()
         if self._conditions:
             children += "\n" + self._conditions.to_string()
         if self._files:
@@ -266,6 +278,8 @@ class Root(BaseFomod):
         )
         warnings.extend(self._info.validate(**callbacks))
         warnings.extend(self._name.validate(**callbacks))
+        if self._image._attrib:
+            warnings.extend(self._image.validate(**callbacks))
         if self._conditions:
             warnings.extend(self._conditions.validate(**callbacks))
         if self._files:
@@ -333,6 +347,17 @@ class Name(BaseFomod):
             msg = "This fomod does not have a name."
             warnings.append(ValidationWarning(title, msg, self))
         return warnings
+
+
+class Image(BaseFomod):
+    def __init__(self, attrib=None):
+        if attrib is None:
+            attrib = {}
+        super().__init__("moduleImage", attrib)
+
+    def to_string(self):
+        attrib = self._write_attributes(self._attrib)
+        return "<{0}{1}/>".format(self._tag, attrib)
 
 
 class Conditions(BaseFomod, HashableMapping):
