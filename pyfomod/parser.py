@@ -246,7 +246,7 @@ def parse(source, warnings=None, lineno=False):
         root = etree.parse(conf, parser)
         if info is not None:
             root._info = etree.parse(info, parser)
-    if None not in (info, warnings):
+    if info is None and warnings is not None:
         warnings.append(
             ValidationWarning(
                 "Missing Info",

@@ -55,6 +55,12 @@ def test_parse(tmp_path):
             None,
             critical=True,
         ),
+        fomod.ValidationWarning(
+            "Missing Info",
+            "Info.xml is missing from the fomod subfolder.",
+            None,
+            critical=True,
+        ),
     ]
     warnings = []
     parser.parse((None, str(conf_path)), warnings=warnings)
