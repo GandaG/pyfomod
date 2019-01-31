@@ -7,13 +7,17 @@ python:
   - 3.6-dev
   - 3.7
   - 3.7-dev
-  - nightly
 
 jobs:
-  fast_finish: true
-  allow_failures:
-    - python: 3.7-dev
-    - python: nightly
+  include:
+    - stage: deploy
+      script: skip
+      if: tag IS present
+      deploy:
+        provider: script
+        script: flit publish
+        on:
+          tags: true
 
 install:
   - pip install -U pip
@@ -22,9 +26,3 @@ install:
 
 script:
   - tox -e check,py
-
-deploy:
-  provider: script
-  script: flit publish
-  on:
-    tags: true
