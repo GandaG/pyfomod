@@ -1,5 +1,21 @@
 ## Changelog
 
+#### 0.8.1
+
+* Fix missing warning for missing info.xml file.
+
+#### 0.8.0
+
+* Added support for `moduleImage` tag as `Image`.
+* Reworked warnings:
+  * No longer uses the native python `warnings`;
+  * Warnings are now `ValidationWarning` objects;
+  * The `validate` functions return a list of these objects;
+  * You can pass a list as a keyword argument to `parse` to collect the
+    warnings instead of passing `quiet`;
+  * The user-defined callbacks for `validate` now should return a **single**
+    warnings object.
+
 #### 0.7.0
 
 * Added group/option type warnings:
