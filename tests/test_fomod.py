@@ -298,6 +298,9 @@ class TestFile:
         expected = '<file source="src" destination="dst"/>'
         assert self.file.to_string() == expected
         self.file.dst = ""
+        expected = '<file source="src" destination=""/>'
+        assert self.file.to_string() == expected
+        self.file.dst = None
         expected = '<file source="src"/>'
         assert self.file.to_string() == expected
 

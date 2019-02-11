@@ -96,7 +96,7 @@ class Target(object):
         elif tag in ("file", "folder"):
             elem = File(tag, attrib)
             elem.src = attrib["source"]
-            elem.dst = attrib.get("destination", "")
+            elem.dst = attrib.get("destination", None)
             parent._file_list.append(elem)
         elif tag == "installSteps":
             elem = Pages(attrib)

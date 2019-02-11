@@ -550,7 +550,7 @@ class File(BaseFomod):
     def to_string(self):
         attrib = dict(self._attrib)
         attrib["source"] = self.src
-        if self.dst:
+        if self.dst is not None:
             attrib["destination"] = self.dst
         elif "destination" in attrib:
             del attrib["destination"]
@@ -562,6 +562,13 @@ class File(BaseFomod):
             title = "Empty Source Field"
             msg = "No source specified, this could lead to problems installing."
             warnings.append(ValidationWarning(title, msg, self, critical=True))
+        if self.dst is None:
+            title = "Missing Destination Field"
+            msg = (
+                "If omitted, the destination is the same as the source."
+                " This may not be intended."
+            )
+            warnings.append(ValidationWarning(title, msg, self))
         return warnings
 
 
