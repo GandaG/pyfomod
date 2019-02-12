@@ -64,7 +64,7 @@ class Target(object):
     def __init__(self, warnings=None):
         self.warnings = warnings
         self._stack = []
-        self._data = ""
+        self._data = []
         self._last = None
 
     def start(self, tag, attrib):
@@ -138,7 +138,7 @@ class Target(object):
         return elem
 
     def data(self, data):
-        self._data = data.strip()
+        self._data.append(data)
 
     def end(self, tag):
         elem = self._stack.pop()
@@ -147,10 +147,14 @@ class Target(object):
             parent = self._stack[-1]
         with suppress(IndexError):
             gparent = self._stack[-2]
+
+        data = "".join(self._data).strip()
+        del self._data[:]
+
         if isinstance(elem, Placeholder):
-            parent._children[elem._tag] = (elem._attrib, self._data)
+            parent._children[elem._tag] = (elem._attrib, data)
         if tag == "moduleName":
-            elem.name = self._data
+            elem.name = data
         elif tag == "fileDependency":
             fname = elem._attrib["file"]
             ftype = FileType(elem._attrib["state"])
@@ -165,11 +169,11 @@ class Target(object):
             order = elem._attrib.get("order", "Ascending")
             parent._order = Order(order)
         elif tag == "description":
-            parent._description = self._data
+            parent._description = data
         elif tag == "image":
             parent._image = elem._attrib["path"]
         elif tag == "flag":
-            parent._map[elem._attrib["name"]] = self._data
+            parent._map[elem._attrib["name"]] = data
         elif tag == "type":
             if isinstance(gparent, Option):
                 gparent._type = OptionType(elem._attrib["name"])
@@ -179,7 +183,6 @@ class Target(object):
             parent._default = OptionType(elem._attrib["name"])
         elif tag == "pattern":
             gparent[elem.conditions] = elem.value
-        self._data = ""
         self._last = elem
         return elem
 
