@@ -1,5 +1,10 @@
 ## Changelog
 
+#### 0.8.2
+
+* Fix omitted destination field in `File` being the same as an empty string - it is now `None`.
+* Fix multiline text not being fully parsed.
+
 #### 0.8.1
 
 * Fix missing warning for missing info.xml file.
