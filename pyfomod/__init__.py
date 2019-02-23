@@ -14,7 +14,7 @@
 
 """A high-level fomod library written in Python."""
 
-__version__ = "0.8.2"
+__version__ = "1.0.0"
 
 __all__ = [
     "Conditions",
