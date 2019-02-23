@@ -1,5 +1,10 @@
 ## Changelog
 
+#### 1.0.0
+
+* First stable release.
+* Added installer support.
+
 #### 0.8.2
 
 * Fix omitted destination field in `File` being the same as an empty string - it is now `None`.
