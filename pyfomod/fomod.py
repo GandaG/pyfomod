@@ -88,7 +88,7 @@ class BaseFomod(object):
         for key, funcs in callbacks.items():
             if isinstance(self, globals()[key]):
                 for func in funcs:
-                    warnings.append(func(self))
+                    warnings.extend(func(self))
         return warnings
 
     @staticmethod
