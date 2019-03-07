@@ -1,5 +1,9 @@
 ## Changelog
 
+#### 1.0.1
+
+* Fix validation callbacks' return value handling - they are now being properly treated as a list.
+
 #### 1.0.0
 
 * First stable release.
