@@ -347,11 +347,7 @@ class TestInstaller(object):
         files2._file_list = [file2, file3]
         option2 = fomod.Option()
         option2.files = files2
-        installer_mock._previous_pages = [
-            installer.PageInfo(
-                None, [installer.InstallerOption(installer_mock, option2)]
-            )
-        ]
+        installer_mock._previous_pages = [installer.PageInfo(None, [option2])]
         files3 = fomod.Files()
         file4 = fomod.File("file", attrib={"priority": "1"})
         file4.src = "source4"
@@ -376,16 +372,8 @@ class TestInstaller(object):
         option3 = fomod.Option()
         option3.flags = flags3
         installer_mock._previous_pages = [
-            installer.PageInfo(
-                None, [installer.InstallerOption(installer_mock, option1)]
-            ),
-            installer.PageInfo(
-                None,
-                [
-                    installer.InstallerOption(installer_mock, option2),
-                    installer.InstallerOption(installer_mock, option3),
-                ],
-            ),
+            installer.PageInfo(None, [option1]),
+            installer.PageInfo(None, [option2, option3]),
         ]
         expected = {"flag1": "value3", "flag2": "value2"}
         assert installer.Installer.flags(installer_mock) == expected

@@ -256,7 +256,7 @@ class Installer(object):
             file_info
             for info in self._previous_pages
             for option in info.options
-            for file_info in FileInfo.process_files(option._object.files, self.path)
+            for file_info in FileInfo.process_files(option.files, self.path)
         ]
         conditional_files = []
         for conditions, files in self.root.file_patterns.items():
@@ -280,9 +280,7 @@ class Installer(object):
     def flags(self):
         flag_dict = {}
         flags_list = [
-            option._object.flags
-            for info in self._previous_pages
-            for option in info.options
+            option.flags for info in self._previous_pages for option in info.options
         ]
         for flags in flags_list:
             for flag, value in flags.items():
