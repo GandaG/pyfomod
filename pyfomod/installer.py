@@ -280,7 +280,7 @@ class Installer(object):
     def flags(self):
         flag_dict = {}
         flags_list = [
-            option._object.flags
+            option.flags
             for info in self._previous_pages
             for option in info.options
         ]
