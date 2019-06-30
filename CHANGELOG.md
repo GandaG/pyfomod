@@ -1,5 +1,9 @@
 ## Changelog
 
+#### 1.0.2
+
+* Fix Installer error when request file/flag list.
+
 #### 1.0.1
 
 * Fix validation callbacks' return value handling - they are now being properly treated as a list.
