@@ -7,7 +7,7 @@ module = "pyfomod"
 author = "Daniel Nunes"
 author-email = "daniel.henri.nunes@gmail.com"
 home-page = "https://github.com/GandaG/pyfomod"
-description-file = "README.rst"
+description-file = "README.md"
 requires-python = ">=3.6"
 classifiers = [
     "Intended Audience :: Developers",
