@@ -1,9 +1,8 @@
 # pyfomod
 
 [![PyPi](https://img.shields.io/pypi/v/pyfomod.svg?style=flat-square&label=PyPI)](https://pypi.org/project/pyfomod/)
-[![Python Versions](https://img.shields.io/pypi/pyversions/pyfomod.svg?style=flat-square&label=Python%20Versions)](https://pypi.org/project/pyfomod/)
-[![Linux Build](https://img.shields.io/travis/GandaG/pyfomod/master.svg?style=flat-square&label=Linux%20Build)](https://travis-ci.org/GandaG/pyfomod)
-[![Windows Build](https://img.shields.io/appveyor/ci/GandaG/pyfomod/master.svg?style=flat-square&label=Windows%20Build)](https://ci.appveyor.com/project/GandaG/pyfomod/branch/master)
+![Python Versions](https://img.shields.io/pypi/pyversions/pyfomod.svg?style=flat-square&label=Python%20Versions)
+[![Build Status](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Factions-badge.atrox.dev%2FGandaG%2Fpyfomod%2Fbadge%3Fref%3Dmaster&style=flat-square)](https://actions-badge.atrox.dev/GandaG/pyfomod/goto?ref=master)
 
 *A high-level fomod library written in Python.*
 

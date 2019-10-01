@@ -1,0 +1,47 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macOS-latest]
+        python-version: [3.6, 3.7]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v1
+      - name: Setup Python
+        uses: actions/setup-python@v1
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install Dependencies
+        run: |
+          python -m pip install -U pip
+          python -m pip install flit
+          python -m flit install
+      - name: Run Tests
+        run: python -m tox -e check,py
+
+  deploy:
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Setup Python
+        uses: actions/setup-python@v1
+        with:
+          python-version: 3.7
+      - name: Install Dependencies
+        run: |
+          python -m pip install -U pip
+          python -m pip install flit
+          python -m flit install
+      - name: Deploy
+        env:
+          FLIT_USERNAME: ${{ secrets.PYPI_USERNAME }}
+          FLIT_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
+        run: flit publish
+
