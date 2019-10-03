@@ -14,6 +14,7 @@
 
 import errno
 import os
+import re
 from collections import OrderedDict
 from contextlib import suppress
 from pathlib import Path
@@ -67,6 +68,50 @@ class Target(object):
         self._data = []
         self._last = None
 
+    def _add_warning(self, warning):
+        if self.warnings is not None:
+            self.warnings.append(warning)
+
+    def _get_enum(self, actual, tag, elem, default):
+        enum_type = default.__class__
+        try:
+            return enum_type(actual)
+        except ValueError:
+            # split camel case enum names into title
+            enum_name = " ".join(
+                re.findall(r"[A-Z]?[a-z]+|[A-Z]+(?=[A-Z]|$)", enum_type.__name__)
+            )
+            title = "Invalid {}".format(enum_name)
+            msg = (
+                "{} was set to '{}' in tag '{}' but "
+                "can only be one of: '{}'. It was "
+                "set to default '{}'.".format(
+                    enum_name,
+                    actual,
+                    tag,
+                    "', '".join(x.value for x in enum_type),
+                    default.value,
+                )
+            )
+            self._add_warning(ValidationWarning(title, msg, elem, critical=True))
+            return default
+
+    def _get_attr(self, attr_dict, attr, tag, elem=None, default=None, skip=False):
+        try:
+            return attr_dict[attr]
+        except KeyError:
+            title = "Missing {} Attribute".format(attr.title())
+            msg = "The '{}' attribute on the '{}' " "tag is required.".format(attr, tag)
+            if skip:
+                msg += " This tag will be skipped."
+            else:
+                msg += " It was set to '{}'.".format(default)
+            self._add_warning(ValidationWarning(title, msg, elem, critical=True))
+            if skip:
+                raise
+            else:
+                return default
+
     def start(self, tag, attrib):
         attrib = dict(attrib)
         with suppress(IndexError):
@@ -85,7 +130,9 @@ class Target(object):
             parent._image = elem
         elif tag in ("moduleDependencies", "dependencies", "visible"):
             elem = Conditions(attrib)
-            elem.type = ConditionType(attrib.get("operator", "And"))
+            elem.type = self._get_enum(
+                attrib.get("operator", "And"), tag, elem, ConditionType.AND
+            )
             if isinstance(parent, Conditions):  # nested dependencies
                 parent[elem] = None
             else:
@@ -95,25 +142,29 @@ class Target(object):
             parent.files = elem
         elif tag in ("file", "folder"):
             elem = File(tag, attrib)
-            elem.src = attrib["source"]
-            elem.dst = attrib.get("destination", None)
-            parent._file_list.append(elem)
+            with suppress(KeyError):  # skips elem when missing source attr
+                elem.src = self._get_attr(attrib, "source", tag, skip=True)
+                elem.dst = attrib.get("destination", None)
+                parent._file_list.append(elem)
         elif tag == "installSteps":
             elem = Pages(attrib)
-            elem.order = Order(attrib.get("order", "Ascending"))
+            elem.order = self._get_enum(
+                attrib.get("order", "Ascending"), tag, elem, Order.ASCENDING
+            )
             parent.pages = elem
         elif tag == "installStep":
             elem = Page(attrib)
-            elem.name = attrib["name"]
+            elem.name = self._get_attr(attrib, "name", tag, elem, "")
             parent._page_list.append(elem)
         elif tag == "group":
             elem = Group(attrib)
-            elem.name = attrib["name"]
-            elem.type = GroupType(attrib["type"])
+            elem.name = self._get_attr(attrib, "name", tag, elem, "")
+            group_type = self._get_attr(attrib, "type", tag, elem, "SelectAny")
+            elem.type = self._get_enum(group_type, tag, elem, GroupType.ANY)
             gparent._group_list.append(elem)
         elif tag == "plugin":
             elem = Option(attrib)
-            elem.name = attrib["name"]
+            elem.name = self._get_attr(attrib, "name", tag, elem, "")
             gparent._option_list.append(elem)
         elif tag == "files":
             elem = Files(attrib)
@@ -156,41 +207,52 @@ class Target(object):
         if tag == "moduleName":
             elem.name = data
         elif tag == "fileDependency":
-            fname = elem._attrib["file"]
-            ftype = FileType(elem._attrib["state"])
-            parent[fname] = ftype
+            with suppress(KeyError):
+                fname = self._get_attr(elem._attrib, "file", tag, skip=True)
+                ftype = self._get_attr(elem._attrib, "state", tag, None, "Active")
+                ftype = self._get_enum(ftype, tag, None, FileType.ACTIVE)
+                parent[fname] = ftype
         elif tag == "flagDependency":
-            fname = elem._attrib["flag"]
-            fvalue = elem._attrib["value"]
-            parent[fname] = fvalue
+            with suppress(KeyError):
+                fname = self._get_attr(elem._attrib, "flag", tag, skip=True)
+                fvalue = self._get_attr(elem._attrib, "value", tag, None, "")
+                parent[fname] = fvalue
         elif tag == "gameDependency":
-            parent[None] = elem._attrib["version"]
+            with suppress(KeyError):
+                parent[None] = self._get_attr(elem._attrib, "version", tag, skip=True)
         elif tag in ("optionalFileGroups", "plugins"):
-            order = elem._attrib.get("order", "Ascending")
-            parent._order = Order(order)
+            parent._order = self._get_enum(
+                elem._attrib.get("order", "Ascending"), tag, None, Order.ASCENDING
+            )
         elif tag == "description":
             parent._description = data
         elif tag == "image":
-            parent._image = elem._attrib["path"]
+            with suppress(KeyError):
+                parent._image = self._get_attr(elem._attrib, "path", tag, skip=True)
         elif tag == "flag":
-            parent._map[elem._attrib["name"]] = data
+            with suppress(KeyError):
+                fname = self._get_attr(elem._attrib, "name", tag, skip=True)
+                parent._map[fname] = data
         elif tag == "type":
+            name = self._get_attr(elem._attrib, "name", tag, None, "Optional")
+            otype = self._get_enum(name, tag, elem, OptionType.OPTIONAL)
             if isinstance(gparent, Option):
-                gparent._type = OptionType(elem._attrib["name"])
+                gparent._type = otype
             else:  # under pattern tag
-                parent.value = OptionType(elem._attrib["name"])
+                parent.value = otype
         elif tag == "defaultType":
-            parent._default = OptionType(elem._attrib["name"])
+            name = self._get_attr(elem._attrib, "name", tag, None, "Optional")
+            parent._default = self._get_enum(name, tag, None, OptionType.OPTIONAL)
         elif tag == "pattern":
             gparent[elem.conditions] = elem.value
         self._last = elem
         return elem
 
     def comment(self, text):
-        if text and self.warnings is not None:
+        if text:
             title = "Comment Detected"
             msg = "There are comments in this fomod, they will be ignored."
-            self.warnings.append(ValidationWarning(title, msg, None, critical=True))
+            self._add_warning(ValidationWarning(title, msg, None, critical=True))
 
     def close(self):
         assert not self._stack

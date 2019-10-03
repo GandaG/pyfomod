@@ -35,6 +35,15 @@ class ValidationWarning(object):
             )
         return NotImplemented
 
+    def __repr__(self):
+        return "'<ValidationWarning({}, {}, {}, critical={}) at {}'>".format(
+            repr(self.title),
+            repr(self.msg),
+            repr(self.elem),
+            repr(self.critical),
+            id(self),
+        )
+
 
 class ConditionType(Enum):
     AND = "And"
