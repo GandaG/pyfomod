@@ -1,5 +1,13 @@
 ## Changelog
 
+#### 1.1.0
+
+* Improved parser reliability on broken syntax:
+  * Invalid attributes that resolve to enums now use the default value;
+  * Missing required attributes are to a sensible default;
+  * Some missing required attributes are REALLY required (like file paths) so they are just skipped;
+  * All of the above will produce a proper warning.
+
 #### 1.0.2
 
 * Fix Installer error when request file/flag list.
