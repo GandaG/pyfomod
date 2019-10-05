@@ -65,7 +65,8 @@ For more information check out *pyfomod*'s documentation at [pyfomod.rtfd.io](ht
 
 ## Issues
 
-Please use the [GitHub issue tracker](https://github.com/GandaG/pyfomod/issues) to submit bugs or request features.
+Please use the [GitHub issue tracker](https://github.com/GandaG/pyfomod/issues)
+to submit bugs or request features.
 
 ## What Is Fomod Anyway?
 
@@ -77,11 +78,20 @@ xml file that does not. For more information visit the
 
 ## Development
 
-Setup a virtualenv, install `flit` and run:
+*pyfomod* uses poetry to manage package versions:
 
-    flit install -s
+    path/to/python.exe -m pip install poetry
+    path/to/python.exe -m poetry install
 
-This will install an editable version of *pyfomod* and all dev packages.
-To publish:
+Ensure that everything is correct before committing:
 
-    flit publish
+    path/to/python.exe -m poetry run check
+    path/to/python.exe -m poetry run test
+
+When you're done with a feature/fix, bump the version:
+
+    path/to/python.exe -m poetry run bump2version {major|minor|patch}
+
+To finally publish to PYPI:
+
+    path/to/python.exe -m poetry publish --build -u $PYPI_USER -p $PYPI_PASS

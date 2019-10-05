@@ -1,35 +1,36 @@
 [build-system]
-requires = ["flit"]
-build-backend = "flit.buildapi"
+requires = ["poetry>=0.12"]
+build-backend = "poetry.masonry.api"
 
-[tool.flit.metadata]
-module = "pyfomod"
-author = "Daniel Nunes"
-author-email = "daniel.henri.nunes@gmail.com"
-home-page = "https://github.com/GandaG/pyfomod"
-description-file = "README.md"
-requires-python = ">=3.6"
+[tool.poetry]
+name = "pyfomod"
+version = "1.1.0"
+description = "A high-level fomod library written in Python."
+license = "Apache-2.0"
+authors = ["Daniel Nunes <daniel.henri.nunes@gmail.com>"]
+readme = "README.md"
+homepage = "https://github.com/GandaG/pyfomod"
+repository = "https://github.com/GandaG/pyfomod"
+documentation = "https://pyfomod.rtfd.io/"
 classifiers = [
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: Apache Software License",
-    "Programming Language :: Python :: 3",
     "Topic :: Software Development :: Libraries",
 ]
-requires = [
-    "lxml",
+packages = [
+    { include = "pyfomod", from = "src" }
 ]
 
-[tool.flit.metadata.requires-extra]
-dev = [
-    "tox",
-    "bump2version",
-]
-test = [
-    "pytest",
-    "pytest-cov",
-    "pytest-sugar",
-]
-doc = [
-    "sphinx",
-    "sphinx-rtd-theme",
-]
+[tool.poetry.dependencies]
+python = "^3.6"
+lxml = "^4"
+
+[tool.poetry.dev-dependencies]
+bump2version = "^0.5"
+invoke = "^1.3"
+isort = "^4.3"
+black = { version = "^19", allows-prereleases = true }
+flake8-bugbear = "^19.8"
+pytest = "^5.2"
+pytest-sugar = "^0.9"
+sphinx = "^2.2"
+sphinx-rtd-theme = "^0.4"
