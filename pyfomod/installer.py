@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+from collections import OrderedDict
 from collections.abc import Sequence
 from distutils.version import LooseVersion
 from pathlib import Path
@@ -138,12 +139,6 @@ class FileInfo(object):
         return result
 
 
-class PageInfo(object):
-    def __init__(self, page, options):
-        self.page = page
-        self.options = options
-
-
 class Installer(object):
     def __init__(self, root, path=None, game_version=None, file_type=None):
         self.game_version = game_version
@@ -157,7 +152,7 @@ class Installer(object):
         if path is not None:
             self.path = Path(path)
         self._current_page = None
-        self._previous_pages = []
+        self._previous_pages = OrderedDict()
         self._has_finished = False
         self._test_conditions(self.root.conditions)
 
@@ -223,7 +218,7 @@ class Installer(object):
         # sort options
         sorted_list = [option for group in self._current_page for option in group]
         real_options = sorted(real_options, key=sorted_list.index)
-        self._previous_pages.append(PageInfo(self._current_page, real_options))
+        self._previous_pages[self._current_page] = real_options
         # order pages
         ordered_pages = self._order_list(self.root.pages, self.root.pages.order)
         current_index = ordered_pages.index(self._current_page)
@@ -243,10 +238,10 @@ class Installer(object):
     def previous(self):
         self._has_finished = False
         try:
-            info = self._previous_pages.pop()
-            self._current_page = info.page
-            return InstallerPage(self, info.page), info.options
-        except IndexError:
+            page, options = self._previous_pages.popitem(last=True)
+            self._current_page = page
+            return InstallerPage(self, page), options
+        except KeyError:
             self._current_page = None
             return None
 
@@ -254,8 +249,8 @@ class Installer(object):
         required_files = FileInfo.process_files(self.root.files, self.path)
         user_files = [
             file_info
-            for info in self._previous_pages
-            for option in info.options
+            for options in self._previous_pages.values()
+            for option in options
             for file_info in FileInfo.process_files(option.files, self.path)
         ]
         conditional_files = []
@@ -280,7 +275,9 @@ class Installer(object):
     def flags(self):
         flag_dict = {}
         flags_list = [
-            option.flags for info in self._previous_pages for option in info.options
+            option.flags
+            for options in self._previous_pages.values()
+            for option in options
         ]
         for flags in flags_list:
             for flag, value in flags.items():

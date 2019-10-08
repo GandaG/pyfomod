@@ -1,3 +1,4 @@
+from collections import OrderedDict
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -315,7 +316,7 @@ class TestInstaller(object):
         test_page = fomod.Page()
         test_option = fomod.Option()
         installer_mock._has_finished = True
-        installer_mock._previous_pages = [installer.PageInfo(test_page, [test_option])]
+        installer_mock._previous_pages = OrderedDict([(test_page, [test_option])])
         installer_mock._current_page = None
         result = installer.Installer.previous(installer_mock)
         assert result[0]._object is test_page
@@ -323,7 +324,7 @@ class TestInstaller(object):
         assert not installer_mock._has_finished
         assert not installer_mock._previous_pages
         assert installer_mock._current_page is test_page
-        installer_mock._previous_pages = []
+        installer_mock._previous_pages = OrderedDict()
         assert installer.Installer.previous(installer_mock) is None
         assert installer_mock._current_page is None
 
@@ -347,7 +348,7 @@ class TestInstaller(object):
         files2._file_list = [file2, file3]
         option2 = fomod.Option()
         option2.files = files2
-        installer_mock._previous_pages = [installer.PageInfo(None, [option2])]
+        installer_mock._previous_pages = OrderedDict([(None, [option2])])
         files3 = fomod.Files()
         file4 = fomod.File("file", attrib={"priority": "1"})
         file4.src = "source4"
@@ -371,10 +372,9 @@ class TestInstaller(object):
         option2.flags = flags2
         option3 = fomod.Option()
         option3.flags = flags3
-        installer_mock._previous_pages = [
-            installer.PageInfo(None, [option1]),
-            installer.PageInfo(None, [option2, option3]),
-        ]
+        installer_mock._previous_pages = OrderedDict(
+            [(None, [option1]), (None, [option2, option3])]
+        )
         expected = {"flag1": "value3", "flag2": "value2"}
         assert installer.Installer.flags(installer_mock) == expected
 
