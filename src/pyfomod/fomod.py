@@ -82,6 +82,12 @@ class OptionType(FomodEnum):
     COULDBEUSABLE = "CouldBeUsable"
 
 
+def create_type_error(kind, value):
+    return TypeError(
+        f"Value must be '{kind.__name__}', " f"not '{type(value).__name__}'"
+    )
+
+
 class BaseFomod(object):
     def __init__(self, tag, attrib):
         self._tag = tag
@@ -154,9 +160,7 @@ class Root(BaseFomod):
 
     @name.setter
     def name(self, value):
-        if not isinstance(value, str):
-            raise ValueError("Value should be string.")
-        self._name.name = value
+        self._name.name = str(value)
 
     @property
     def image(self):
@@ -164,9 +168,7 @@ class Root(BaseFomod):
 
     @image.setter
     def image(self, value):
-        if not isinstance(value, str):
-            raise ValueError("Value should be string.")
-        self._image._attrib["path"] = value
+        self._image._attrib["path"] = str(value)
 
     @property
     def author(self):
@@ -174,9 +176,7 @@ class Root(BaseFomod):
 
     @author.setter
     def author(self, value):
-        if not isinstance(value, str):
-            raise ValueError("Value should be string.")
-        self._info.set_text("Author", value)
+        self._info.set_text("Author", str(value))
 
     @property
     def version(self):
@@ -184,9 +184,7 @@ class Root(BaseFomod):
 
     @version.setter
     def version(self, value):
-        if not isinstance(value, str):
-            raise ValueError("Value should be string.")
-        self._info.set_text("Version", value)
+        self._info.set_text("Version", str(value))
 
     @property
     def description(self):
@@ -194,9 +192,7 @@ class Root(BaseFomod):
 
     @description.setter
     def description(self, value):
-        if not isinstance(value, str):
-            raise ValueError("Value should be string.")
-        self._info.set_text("Description", value)
+        self._info.set_text("Description", str(value))
 
     @property
     def website(self):
@@ -204,9 +200,7 @@ class Root(BaseFomod):
 
     @website.setter
     def website(self, value):
-        if not isinstance(value, str):
-            raise ValueError("Value should be string.")
-        self._info.set_text("Website", value)
+        self._info.set_text("Website", str(value))
 
     @property
     def conditions(self):
@@ -215,7 +209,7 @@ class Root(BaseFomod):
     @conditions.setter
     def conditions(self, value):
         if not isinstance(value, Conditions):
-            raise ValueError("Value should be Conditions.")
+            raise create_type_error(Conditions, value)
         self._conditions = value
         self._conditions._tag = "moduleDependencies"
 
@@ -226,7 +220,7 @@ class Root(BaseFomod):
     @files.setter
     def files(self, value):
         if not isinstance(value, Files):
-            raise ValueError("Value should be Files.")
+            raise create_type_error(Files, value)
         self._files = value
         self._files._tag = "requiredInstallFiles"
 
@@ -237,7 +231,7 @@ class Root(BaseFomod):
     @pages.setter
     def pages(self, value):
         if not isinstance(value, Pages):
-            raise ValueError("Value should be Pages.")
+            raise create_type_error(Pages, value)
         self._pages = value
 
     @property
@@ -247,7 +241,7 @@ class Root(BaseFomod):
     @file_patterns.setter
     def file_patterns(self, value):
         if not isinstance(value, FilePatterns):
-            raise ValueError("Value should be FilePatterns.")
+            raise create_type_error(FilePatterns, value)
         self._file_patterns = value
 
     def installer(self, path=None, game_version=None, file_type=None):
@@ -386,24 +380,21 @@ class Conditions(BaseFomod, HashableMapping):
 
     @type.setter
     def type(self, value):
-        if not isinstance(value, ConditionType):
-            raise ValueError("Value should be ConditionType.")
-        self._type = value
+        self._type = ConditionType(value)
 
     def __getitem__(self, key):
         return self._map[key]
 
     def __setitem__(self, key, value):
-        if key is not None and not isinstance(key, (str, Conditions)):
-            raise TypeError("Key must be either None, string or Conditions.")
-        if key is None and not isinstance(value, str):
-            raise TypeError("Value for None key must be string.")
-        if isinstance(key, str) and not isinstance(value, (str, FileType)):
-            raise TypeError("Value for string key must be string or FileType.")
-        if isinstance(key, Conditions):
-            if value is not None:
-                raise TypeError("Value for Conditions key must be None.")
+        if key is None:
+            value = str(value)
+        elif isinstance(key, Conditions):
             key._tag = "dependencies"
+            value = None
+        else:
+            key = str(key)
+            if not isinstance(value, FileType):
+                value = str(value)
         self._map[key] = value
 
     def __delitem__(self, key):
@@ -461,21 +452,17 @@ class Files(BaseFomod, HashableMapping):
         self._file_list = []
 
     def __getitem__(self, key):
-        if not isinstance(key, str):
-            raise TypeError("Key must be string.")
         if key.endswith(("/", "\\")) and key not in self:
             key = key[:-1]
         try:
             return next(a.dst for a in self._file_list if a.src == key)
         except StopIteration:
-            raise KeyError()
+            raise KeyError(key)
 
     # trailing slash -> folder, else file
     def __setitem__(self, key, value):
-        if not isinstance(key, str):
-            raise TypeError("Key must be string.")
-        if not isinstance(value, str):
-            raise TypeError("Value must be string.")
+        key = str(key)
+        value = str(value)
         folder = False
         if key.endswith(("/", "\\")) and key not in self:
             key = key[:-1]
@@ -492,15 +479,14 @@ class Files(BaseFomod, HashableMapping):
             self._file_list.append(new)
 
     def __delitem__(self, key):
-        if not isinstance(key, str):
-            raise TypeError("Key must be string.")
+        key = str(key)
         if key.endswith(("/", "\\")) and key not in self:
             key = key[:-1]
         try:
             value = next(a for a in self._file_list if a.src == key)
             self._file_list.remove(value)
         except StopIteration:
-            raise KeyError()
+            raise KeyError(key)
 
     def __iter__(self):
         for item in self._file_list:
@@ -575,16 +561,14 @@ class Pages(BaseFomod, HashableSequence):
 
     @order.setter
     def order(self, value):
-        if not isinstance(value, Order):
-            raise ValueError("Value should be Order.")
-        self._order = value
+        self._order = Order(value)
 
     def __getitem__(self, key):
         return self._page_list[key]
 
     def __setitem__(self, key, value):
         if not isinstance(value, Page):
-            raise ValueError("Value should be Page.")
+            raise create_type_error(Page, value)
         self._page_list[key] = value
 
     def __delitem__(self, key):
@@ -595,7 +579,7 @@ class Pages(BaseFomod, HashableSequence):
 
     def insert(self, key, value):
         if not isinstance(value, Page):
-            raise ValueError("Value should be Page.")
+            raise create_type_error(Page, value)
         self._page_list.insert(key, value)
 
     def to_string(self):
@@ -636,9 +620,7 @@ class Page(BaseFomod, HashableSequence):
 
     @name.setter
     def name(self, value):
-        if not isinstance(value, str):
-            raise ValueError("Value should be string.")
-        self._name = value
+        self._name = str(value)
 
     @property
     def conditions(self):
@@ -647,7 +629,7 @@ class Page(BaseFomod, HashableSequence):
     @conditions.setter
     def conditions(self, value):
         if not isinstance(value, Conditions):
-            raise ValueError("Value should be Conditions.")
+            raise create_type_error(Conditions, value)
         self._conditions = value
         self._conditions._tag = "visible"
 
@@ -657,16 +639,14 @@ class Page(BaseFomod, HashableSequence):
 
     @order.setter
     def order(self, value):
-        if not isinstance(value, Order):
-            raise ValueError("Value should be Order.")
-        self._order = value
+        self._order = Order(value)
 
     def __getitem__(self, key):
         return self._group_list[key]
 
     def __setitem__(self, key, value):
         if not isinstance(value, Group):
-            raise ValueError("Value should be Group.")
+            raise create_type_error(Group, value)
         self._group_list[key] = value
 
     def __delitem__(self, key):
@@ -677,7 +657,7 @@ class Page(BaseFomod, HashableSequence):
 
     def insert(self, key, value):
         if not isinstance(value, Group):
-            raise ValueError("Value should be Group.")
+            raise create_type_error(Group, value)
         self._group_list.insert(key, value)
 
     def to_string(self):
@@ -731,9 +711,7 @@ class Group(BaseFomod, HashableSequence):
 
     @name.setter
     def name(self, value):
-        if not isinstance(value, str):
-            raise ValueError("Value should be string.")
-        self._name = value
+        self._name = str(value)
 
     @property
     def order(self):
@@ -741,9 +719,7 @@ class Group(BaseFomod, HashableSequence):
 
     @order.setter
     def order(self, value):
-        if not isinstance(value, Order):
-            raise ValueError("Value should be Order.")
-        self._order = value
+        self._order = Order(value)
 
     @property
     def type(self):
@@ -751,16 +727,14 @@ class Group(BaseFomod, HashableSequence):
 
     @type.setter
     def type(self, value):
-        if not isinstance(value, GroupType):
-            raise ValueError("Value should be GroupType.")
-        self._type = value
+        self._type = GroupType(value)
 
     def __getitem__(self, key):
         return self._option_list[key]
 
     def __setitem__(self, key, value):
         if not isinstance(value, Option):
-            raise ValueError("Value should be Option.")
+            raise create_type_error(Option, value)
         self._option_list[key] = value
 
     def __delitem__(self, key):
@@ -771,7 +745,7 @@ class Group(BaseFomod, HashableSequence):
 
     def insert(self, key, value):
         if not isinstance(value, Option):
-            raise ValueError("Value should be Option.")
+            raise create_type_error(Option, value)
         self._option_list.insert(key, value)
 
     def to_string(self):
@@ -850,9 +824,7 @@ class Option(BaseFomod):
 
     @name.setter
     def name(self, value):
-        if not isinstance(value, str):
-            raise ValueError("Value should be string.")
-        self._name = value
+        self._name = str(value)
 
     @property
     def description(self):
@@ -860,9 +832,7 @@ class Option(BaseFomod):
 
     @description.setter
     def description(self, value):
-        if not isinstance(value, str):
-            raise ValueError("Value should be string.")
-        self._description = value
+        self._description = str(value)
 
     @property
     def image(self):
@@ -870,9 +840,7 @@ class Option(BaseFomod):
 
     @image.setter
     def image(self, value):
-        if not isinstance(value, str):
-            raise ValueError("Value should be string.")
-        self._image = value
+        self._image = str(value)
 
     @property
     def files(self):
@@ -881,7 +849,7 @@ class Option(BaseFomod):
     @files.setter
     def files(self, value):
         if not isinstance(value, Files):
-            raise ValueError("Value should be Files.")
+            raise create_type_error(Files, value)
         self._files = value
         self._files._tag = "files"
 
@@ -892,7 +860,7 @@ class Option(BaseFomod):
     @flags.setter
     def flags(self, value):
         if not isinstance(value, Flags):
-            raise ValueError("Value should be Flags.")
+            raise create_type_error(Flags, value)
         self._flags = value
 
     @property
@@ -901,9 +869,14 @@ class Option(BaseFomod):
 
     @type.setter
     def type(self, value):
-        if not isinstance(value, (Type, OptionType)):
-            raise ValueError("Value should be OptionType or Type.")
-        self._type = value
+        try:
+            self._type = OptionType(value)
+        except ValueError:
+            if not isinstance(value, Type):
+                raise TypeError(
+                    f"Value must be OptionType or Type, not '{type(value).__name__}'"
+                )
+            self._type = value
 
     def to_string(self):
         children = ""
@@ -956,11 +929,7 @@ class Flags(BaseFomod, HashableMapping):
         return self._map[key]
 
     def __setitem__(self, key, value):
-        if not isinstance(key, str):
-            raise TypeError("Key must be string.")
-        if not isinstance(value, str):
-            raise TypeError("Value must be string.")
-        self._map[key] = value
+        self._map[str(key)] = str(value)
 
     def __delitem__(self, key):
         del self._map[key]
@@ -995,20 +964,16 @@ class Type(BaseFomod, HashableMapping):
 
     @default.setter
     def default(self, value):
-        if not isinstance(value, OptionType):
-            raise ValueError("Value should be OptionType.")
-        self._default = value
+        self._default = OptionType(value)
 
     def __getitem__(self, key):
         return self._map[key]
 
     def __setitem__(self, key, value):
         if not isinstance(key, Conditions):
-            raise TypeError("Key must be Conditions.")
-        if not isinstance(value, OptionType):
-            raise TypeError("Value must be OptionType.")
+            raise create_type_error(Conditions, value)
         key._tag = "dependencies"
-        self._map[key] = value
+        self._map[key] = OptionType(value)
 
     def __delitem__(self, key):
         del self._map[key]
@@ -1056,9 +1021,9 @@ class FilePatterns(BaseFomod, HashableMapping):
 
     def __setitem__(self, key, value):
         if not isinstance(key, Conditions):
-            raise TypeError("Key must be Conditions.")
+            raise create_type_error(Conditions, value)
         if not isinstance(value, Files):
-            raise TypeError("Value must be Files.")
+            raise create_type_error(Files, value)
         key._tag = "dependencies"
         value._tag = "files"
         self._map[key] = value

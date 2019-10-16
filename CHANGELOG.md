@@ -1,5 +1,13 @@
 ## Changelog
 
+#### UNRELEASED
+
+* More pythonic API for property setting:
+  * It now tries to adapt to the type passed to it, instead of immediately failing - you
+    can now pass an integer to a property that expects strings;
+  * **BREAKING** - Incorrect types that cannot be coerced to the approppriate one now properly raise
+    `TypeError` instead of `ValueError`.
+
 #### 1.2.0
 
 * Added installer shortcut to `Root`.
