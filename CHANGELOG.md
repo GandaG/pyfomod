@@ -1,5 +1,9 @@
 ## Changelog
 
+#### UNRELEASED
+
+* Added installer shortcut to `Root`.
+
 #### 1.1.0
 
 * Improved parser reliability on broken syntax:

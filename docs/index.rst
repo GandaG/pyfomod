@@ -108,6 +108,11 @@ Root
         A :py:class:`FilePatterns` instance that contains a list of patterns that
         install files based on conditions.
 
+    .. py:method:: installer([path[, game_version[, file_type]]])
+
+        A shortcut to creating an installer for this tree. For information on the
+        arguments, see :py:class:`Installer`.
+
 Conditions
 **********
 

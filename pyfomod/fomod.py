@@ -16,6 +16,7 @@ from collections import OrderedDict
 from enum import Enum
 
 from .base import HashableMapping, HashableSequence
+from .installer import Installer
 
 
 class ValidationWarning(object):
@@ -245,6 +246,11 @@ class Root(BaseFomod):
         if not isinstance(value, FilePatterns):
             raise ValueError("Value should be FilePatterns.")
         self._file_patterns = value
+
+    def installer(self, path=None, game_version=None, file_type=None):
+        from .installer import Installer
+
+        return Installer(self, path, game_version, file_type)
 
     def to_string(self):
         children = ""
