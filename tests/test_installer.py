@@ -428,20 +428,18 @@ class TestInstaller(object):
         installer_mock._test_flag_condition.assert_called_once_with("flag", "value")
         installer_mock._test_version_condition.assert_called_once_with("version")
         installer_mock._test_conditions.assert_called_once()
-        installer_mock._raise_failed_conditions.assert_not_called()
         installer_mock.reset_mock()
         installer_mock._test_file_condition.side_effect = installer._FailedCondition
-        installer.Installer._test_conditions(installer_mock, test_conditions)
-        installer_mock._raise_failed_conditions.assert_called_once()
+        with pytest.raises(installer.FailedCondition):
+            installer.Installer._test_conditions(installer_mock, test_conditions)
         installer_mock.reset_mock()
         test_conditions.type = fomod.ConditionType.OR
         installer.Installer._test_conditions(installer_mock, test_conditions)
-        installer_mock._raise_failed_conditions.assert_not_called()
         installer_mock._test_flag_condition.side_effect = installer._FailedCondition
         installer_mock._test_version_condition.side_effect = installer._FailedCondition
         installer_mock._test_conditions.side_effect = installer._FailedCondition
-        installer.Installer._test_conditions(installer_mock, test_conditions)
-        installer_mock._raise_failed_conditions.assert_called_once()
+        with pytest.raises(installer.FailedCondition):
+            installer.Installer._test_conditions(installer_mock, test_conditions)
 
     def test_order_list(self):
         mock1 = Mock(spec=["name"])

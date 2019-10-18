@@ -26,7 +26,13 @@ class _FailedCondition(Exception):
 
 
 class FailedCondition(Exception):
-    pass
+    def __init__(self, *msgs):
+        self.msg = "The following condition(s) have failed:"
+        for msg in msgs:
+            self.msg += "\n\t" + msg
+
+    def __str__(self):
+        return self.msg
 
 
 class InvalidSelection(Exception):
@@ -312,13 +318,6 @@ class Installer(object):
                 f"Game version is {game_version} but {version} is required."
             )
 
-    @staticmethod
-    def _raise_failed_conditions(failed):
-        msg = "The following condition(s) have failed:"
-        for cond in failed:
-            msg += "\n\t" + cond
-        raise FailedCondition(msg)
-
     def _test_conditions(self, conditions):
         op = conditions.type
         failed = []
@@ -340,9 +339,9 @@ class Installer(object):
                 else:
                     failed.append(str(exc))
                 if op is fomod.ConditionType.AND:
-                    self._raise_failed_conditions(failed)
+                    raise FailedCondition(*failed)
         if op is fomod.ConditionType.OR and len(failed) == len(conditions):
-            self._raise_failed_conditions(failed)
+            raise FailedCondition(*failed)
 
     @staticmethod
     def _order_list(unordered_list, order):
