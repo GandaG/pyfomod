@@ -1,6 +1,6 @@
 ## Changelog
 
-#### UNRELEASED
+#### 1.2.0
 
 * Added installer shortcut to `Root`.
 * Warnings have been reworked into subclasses and moved to a new module, `warnings`.
