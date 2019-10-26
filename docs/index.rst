@@ -311,21 +311,52 @@ Validation
 mistakes and incorrect values that, while valid, may lead to unexpected behaviour
 during user installation.
 
+    >>> with open("example/fomod/moduleconfig.xml", "r") as fp:
+    ...     print(fp.read())
+    ...
+    <config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://qconsulting.ca/fo3/ModConfig5.0.xsd">
+    <moduleName></moduleName>
+    <requiredInstallFiles>
+        <file/>
+    </requiredInstallFiles>
+    </config>
+
 You can check for warnings during parsing by passing a list to :py:func:`parse`::
 
-    >>> warning_list = []
-    >>> root = pyfomod.parse("package", warnings=warning_list)
+    >>> warnings = []
+    >>> pyfomod.parse("example", warnings)
+    <pyfomod.fomod.Root at 0x1f98dde2a88>
+    >>> for warning in warnings:
+    ...     print(f"Title: {warning.title}")
+    ...     print(f"Message: {warning.msg}")
+    ...     print(f"Critical: {warning.critical}\n")
+    ...
+    Title: Missing Source Attribute
+    Message: The 'source' attribute on the 'file' tag is required. This tag will be skipped.
+    Critical: True
 
 You can also check for warnings during runtime by calling the :py:func:`validate` method
 on any fomod object. Note that the possible errors produced in these two situations are
-different, so if you want to find every possible warning be sure to use both.
+different, so if you want to find every possible warning be sure to use both::
+
+    >>> root = pyfomod.parse("example")
+    >>> for warning in root.validate():
+    ...     print(f"Title: {warning.title}")
+    ...     print(f"Message: {warning.msg}")
+    ...     print(f"Critical: {warning.critical}\n")
+    ...
+    Title: Missing Installer Name
+    Message: This fomod does not have a name.
+    Critical: False
+
+    Title: Empty Fomod Tree
+    Message: This fomod is empty, nothing will be installed.
+    Critical: False
 
 .. py:function:: validate(**callbacks)
 
     This method validates the object and all its children, recursively. It returns a
-    list of :py:class:`ValidationWarning` with the errors it found::
-
-        >>> warnings_list = root.validate()
+    list of :py:class:`ValidationWarning` with the errors it found.
 
     The *callbacks* argument is a dict that maps strings to function objects. The keys
     of this dict should be *pyfomod* class names and the function objects should take a
@@ -333,10 +364,35 @@ different, so if you want to find every possible warning be sure to use both.
     :py:class:`ValidationWarning` objects.
 
     This argument is useful for adding more warnings to check for or even for running
-    an arbitrary function recursively on the tree.
+    an arbitrary function recursively on the tree::
+
+        >>> # this callback will create a warning for all 'moduleName' tags
+        >>> def example_callback(instance):
+        ...     title = "Example Title"
+        ...     msg = "This is an example validation message!"
+        ...     return [pyfomod.ValidationWarning(title, msg, instance)]
+        ...
+        >>> root = pyfomod.parse("example")
+        >>> for warning in root.validate(Name=[example_callback]):
+        ...     print(f"Title: {warning.title}")
+        ...     print(f"Message: {warning.msg}")
+        ...     print(f"Critical: {warning.critical}\n")
+        ...
+        Title: Example Title
+        Message: This is an example validation message!
+        Critical: False
+
+        Title: Missing Installer Name
+        Message: This fomod does not have a name.
+        Critical: False
+
+        Title: Empty Fomod Tree
+        Message: This fomod is empty, nothing will be installed.
+        Critical: False
 
 .. py:class:: ValidationWarning
 
+    The base class of all pyfomod warnings.
     Each instance of this class refers to an error present in the fomod tree.
 
     .. py:attribute:: title
@@ -355,6 +411,141 @@ different, so if you want to find every possible warning be sure to use both.
 
         A boolean on whether this error refers to something that may interfere with
         the installation process or is merely aesthetic.
+
+Each warning returned by pyfomod is a specific subclass to allow
+for better filtering.
+
+.. py:class:: warnings.InvalidEnumWarning
+
+    Critical warning for when the fomod file has an attribute that evaluates
+    to an enum, like `operator` attribute in the `dependencies` tag, and the
+    value of this attribute does not match any of the possibilities.
+
+.. py:class:: warnings.DefaultAttributeWarning
+
+    Warning for when an attribute is required but a sensible default can be
+    used.
+
+.. py:class:: warnings.RequiredAttributeWarning
+
+    Warning for when an attribute is required but a default *cannot* be found
+    for it (such as file paths). This warning occurs during parsing and so
+    this tag will *not* be parsed.
+
+.. py:class:: warnings.CommentsPresentWarning
+
+    Warning for when comments exists in the fomod files. This exists because
+    those comments will be deleted if the parsed tree is written.
+
+.. py:class:: warnings.InvalidSyntaxWarning
+
+    Warning for generic fomod syntax errors that are not better covered by other
+    warnings.
+
+.. py:class:: warnings.MissingInfoWarning
+
+    Warning for when there is no `info.xml` file.
+
+.. py:class:: warnings.EmptyTreeWarning
+
+    Warning for when a tree is empty - meaning nothing will be installed.
+
+.. py:class:: warnings.ImpossibleFlagWarning
+
+    Warning for when there is a flag dependency for a flag that is never created.
+
+.. py:class:: warnings.InstallerNameWarning
+
+    Warning for fomod trees without a name.
+
+.. py:class:: warnings.EmptyConditionsWarning
+
+    Warning for empty conditions - these will not be written to prevent errors.
+
+.. py:class:: warnings.VersionDependencyWarning
+
+    Warning for version dependencies that do not specify a version.
+    These will not be written to prevent errors.
+
+.. py:class:: warnings.FileDependencyWarning
+
+    Warning for file dependencies that do not specify a file to depend on.
+    These will not be written to prevent errors.
+
+.. py:class:: warnings.UselessFlagsWarning
+
+    Warning for flag dependencies used in `moduleDependencies` - these can never
+    be created and so will always fail.
+
+.. py:class:: warnings.EmptySourceWarning
+
+    Warning for files or folders that have no source path - this may lead to
+    problems when installing.
+
+.. py:class:: warnings.MissingDestinationWarning
+
+    Warning for files or folders that do not explicit specify the destination path.
+    When omitted, the destination is assumed to be the same as the source path.
+
+.. py:class:: warnings.OrderWarning
+
+    The `order` attribute in the `installSteps`, `optionalFileGroups` and `plugins`
+    tags defines the order in which their children appear in the installer. Any
+    value but `Explicit` will reorder the children to something different than the
+    user specified, which is generally not intended. An omitted `order` attribute
+    defaults to `Ascending`.
+
+.. py:class:: warnings.EmptyPageWarning
+
+    Warning for when there are pages without groups.
+
+.. py:class:: warnings.PageNameWarning
+
+    Pages without name.
+
+.. py:class:: warnings.EmptyGroupWarning
+
+    Warning for when there are groups without options.
+
+.. py:class:: warnings.GroupNameWarning
+
+    Groups without name.
+
+.. py:class:: warnings.AtLeastOneWarning
+
+    A group that has the type `SelectAtLeastOne` but none of the options
+    are selectable.
+
+.. py:class:: warnings.ExactlyOneMissingWarning
+
+    A group that has the type `SelectExactlyOne` but none of the options
+    are selectable.
+
+.. py:class:: warnings.ExactlyOneRequiredWarning
+
+    A group that has the type `SelectExactlyOne` but at least two of the
+    options are required.
+
+.. py:class:: warnings.AtMostOneWarning
+
+    A group that has the type `SelectAtMostOne` but at least two of the
+    options are required.
+
+.. py:class:: warnings.OptionNameWarning
+
+    Options without name.
+
+.. py:class:: warnings.OptionDescriptionWarning
+
+    Options without description.
+
+.. py:class:: warnings.EmptyOptionWarning
+
+    Options that don't install files or set flags and therefore are useless.
+
+.. py:class:: warnings.EmptyTypeWarning
+
+    A `dependencyType` tag that has no children and therefore cannot set a type.
 
 Fomod Installer
 ***************

@@ -1,7 +1,7 @@
 import textwrap
 from pathlib import Path
 
-from pyfomod import fomod, parser
+from pyfomod import ValidationWarning, parser
 
 PACKAGE_PATH = Path(__file__).parent / "package_test"
 INFO_PATH = Path(PACKAGE_PATH, "fomod", "info.xml")
@@ -68,20 +68,20 @@ def test_parse(tmp_path):
     warnings = []
     root = parser.parse((None, str(conf_path)), warnings=warnings)
     expected = [
-        fomod.ValidationWarning(
-            "Syntax Error",
+        ValidationWarning(
+            "XML Syntax Error",
             "Element 'moduleDependencies': This element is not expected. "
             "Expected is ( moduleName ).",
             None,
             critical=True,
         ),
-        fomod.ValidationWarning(
-            "Comment Detected",
-            "There are comments in this fomod, they will be ignored.",
+        ValidationWarning(
+            "XML Comments Present",
+            "There are comments in the fomod, they will be ignored.",
             None,
             critical=True,
         ),
-        fomod.ValidationWarning(
+        ValidationWarning(
             "Invalid Condition Type",
             "Condition Type was set to 'invalid' in tag 'moduleDependencies' "
             "but can only be one of: 'And', 'Or'. "
@@ -89,57 +89,57 @@ def test_parse(tmp_path):
             root.conditions,
             critical=True,
         ),
-        fomod.ValidationWarning(
+        ValidationWarning(
             "Missing File Attribute",
             "The 'file' attribute on the 'fileDependency' "
             "tag is required. This tag will be skipped.",
             None,
             critical=True,
         ),
-        fomod.ValidationWarning(
+        ValidationWarning(
             "Missing State Attribute",
             "The 'state' attribute on the 'fileDependency' "
             "tag is required. It was set to 'Active'.",
             None,
             critical=True,
         ),
-        fomod.ValidationWarning(
+        ValidationWarning(
             "Invalid File Type",
             "File Type was set to 'invalid' in tag 'fileDependency' "
-            "but can only be one of: 'Missing', 'Inactive', 'Active'. "
+            "but can only be one of: 'Active', 'Inactive', 'Missing'. "
             "It was set to default 'Active'.",
             None,
             critical=True,
         ),
-        fomod.ValidationWarning(
+        ValidationWarning(
             "Missing Flag Attribute",
             "The 'flag' attribute on the 'flagDependency' "
             "tag is required. This tag will be skipped.",
             None,
             critical=True,
         ),
-        fomod.ValidationWarning(
+        ValidationWarning(
             "Missing Value Attribute",
             "The 'value' attribute on the 'flagDependency' "
             "tag is required. It was set to ''.",
             None,
             critical=True,
         ),
-        fomod.ValidationWarning(
+        ValidationWarning(
             "Missing Version Attribute",
             "The 'version' attribute on the 'gameDependency' "
             "tag is required. This tag will be skipped.",
             None,
             critical=True,
         ),
-        fomod.ValidationWarning(
+        ValidationWarning(
             "Missing Source Attribute",
             "The 'source' attribute on the 'file' "
             "tag is required. This tag will be skipped.",
             None,
             critical=True,
         ),
-        fomod.ValidationWarning(
+        ValidationWarning(
             "Invalid Order",
             "Order was set to 'invalid' in tag 'installSteps' "
             "but can only be one of: "
@@ -148,44 +148,44 @@ def test_parse(tmp_path):
             root.pages,
             critical=True,
         ),
-        fomod.ValidationWarning(
+        ValidationWarning(
             "Missing Name Attribute",
             "The 'name' attribute on the 'installStep' "
             "tag is required. It was set to ''.",
             root.pages[0],
             critical=True,
         ),
-        fomod.ValidationWarning(
+        ValidationWarning(
             "Missing Name Attribute",
             "The 'name' attribute on the 'group' tag is required. It was set to ''.",
             root.pages[0][0],
             critical=True,
         ),
-        fomod.ValidationWarning(
+        ValidationWarning(
             "Missing Type Attribute",
             "The 'type' attribute on the 'group' "
             "tag is required. It was set to 'SelectAny'.",
             root.pages[0][0],
             critical=True,
         ),
-        fomod.ValidationWarning(
+        ValidationWarning(
             "Invalid Group Type",
             "Group Type was set to 'invalid' in tag 'group' "
             "but can only be one of: "
-            "'SelectAtLeastOne', 'SelectAtMostOne', "
-            "'SelectExactlyOne', 'SelectAll', 'SelectAny'. "
+            "'SelectAny', 'SelectAll', 'SelectAtLeastOne', "
+            "'SelectAtMostOne', 'SelectExactlyOne'. "
             "It was set to default 'SelectAny'.",
             root.pages[0][1],
             critical=True,
         ),
-        fomod.ValidationWarning(
+        ValidationWarning(
             "Missing Name Attribute",
             "The 'name' attribute on the 'plugin' "
             "tag is required. It was set to ''.",
             root.pages[0][1][0],
             critical=True,
         ),
-        fomod.ValidationWarning(
+        ValidationWarning(
             "Invalid Order",
             "Order was set to 'invalid' in tag 'optionalFileGroups' "
             "but can only be one of: "
@@ -194,11 +194,11 @@ def test_parse(tmp_path):
             None,
             critical=True,
         ),
-        fomod.ValidationWarning(
-            "Missing Info",
+        ValidationWarning(
+            "Missing Info XML",
             "Info.xml is missing from the fomod subfolder.",
             None,
-            critical=True,
+            critical=False,
         ),
     ]
     assert warnings == expected

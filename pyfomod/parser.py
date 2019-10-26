@@ -14,7 +14,6 @@
 
 import errno
 import os
-import re
 from collections import OrderedDict
 from contextlib import suppress
 from pathlib import Path
@@ -41,7 +40,14 @@ from .fomod import (
     Pages,
     Root,
     Type,
-    ValidationWarning,
+)
+from .warnings import (
+    CommentsPresentWarning,
+    DefaultAttributeWarning,
+    InvalidEnumWarning,
+    InvalidSyntaxWarning,
+    MissingInfoWarning,
+    RequiredAttributeWarning,
 )
 
 SCHEMA_PATH = Path(__file__).parent / "fomod.xsd"
@@ -72,45 +78,23 @@ class Target(object):
         if self.warnings is not None:
             self.warnings.append(warning)
 
-    def _get_enum(self, actual, tag, elem, default):
-        enum_type = default.__class__
+    def _get_enum(self, actual, tag, elem, enum_type):
         try:
             return enum_type(actual)
         except ValueError:
-            # split camel case enum names into title
-            enum_name = " ".join(
-                re.findall(r"[A-Z]?[a-z]+|[A-Z]+(?=[A-Z]|$)", enum_type.__name__)
-            )
-            title = "Invalid {}".format(enum_name)
-            msg = (
-                "{} was set to '{}' in tag '{}' but "
-                "can only be one of: '{}'. It was "
-                "set to default '{}'.".format(
-                    enum_name,
-                    actual,
-                    tag,
-                    "', '".join(x.value for x in enum_type),
-                    default.value,
-                )
-            )
-            self._add_warning(ValidationWarning(title, msg, elem, critical=True))
-            return default
+            warning = InvalidEnumWarning(tag, enum_type, actual, elem)
+            self._add_warning(warning)
+            return enum_type.default()
 
-    def _get_attr(self, attr_dict, attr, tag, elem=None, default=None, skip=False):
+    def _get_attr(self, attr_dict, attr, tag, elem=None, default=None):
         try:
             return attr_dict[attr]
         except KeyError:
-            title = "Missing {} Attribute".format(attr.title())
-            msg = "The '{}' attribute on the '{}' " "tag is required.".format(attr, tag)
-            if skip:
-                msg += " This tag will be skipped."
-            else:
-                msg += " It was set to '{}'.".format(default)
-            self._add_warning(ValidationWarning(title, msg, elem, critical=True))
-            if skip:
+            if default is None:
+                self._add_warning(RequiredAttributeWarning(tag, attr))
                 raise
-            else:
-                return default
+            self._add_warning(DefaultAttributeWarning(tag, attr, default, elem))
+            return default
 
     def start(self, tag, attrib):
         attrib = dict(attrib)
@@ -131,7 +115,7 @@ class Target(object):
         elif tag in ("moduleDependencies", "dependencies", "visible"):
             elem = Conditions(attrib)
             elem.type = self._get_enum(
-                attrib.get("operator", "And"), tag, elem, ConditionType.AND
+                attrib.get("operator", "And"), tag, elem, ConditionType
             )
             if isinstance(parent, Conditions):  # nested dependencies
                 parent[elem] = None
@@ -143,13 +127,13 @@ class Target(object):
         elif tag in ("file", "folder"):
             elem = File(tag, attrib)
             with suppress(KeyError):  # skips elem when missing source attr
-                elem.src = self._get_attr(attrib, "source", tag, skip=True)
+                elem.src = self._get_attr(attrib, "source", tag)
                 elem.dst = attrib.get("destination", None)
                 parent._file_list.append(elem)
         elif tag == "installSteps":
             elem = Pages(attrib)
             elem.order = self._get_enum(
-                attrib.get("order", "Ascending"), tag, elem, Order.ASCENDING
+                attrib.get("order", "Ascending"), tag, elem, Order
             )
             parent.pages = elem
         elif tag == "installStep":
@@ -160,7 +144,7 @@ class Target(object):
             elem = Group(attrib)
             elem.name = self._get_attr(attrib, "name", tag, elem, "")
             group_type = self._get_attr(attrib, "type", tag, elem, "SelectAny")
-            elem.type = self._get_enum(group_type, tag, elem, GroupType.ANY)
+            elem.type = self._get_enum(group_type, tag, elem, GroupType)
             gparent._group_list.append(elem)
         elif tag == "plugin":
             elem = Option(attrib)
@@ -208,41 +192,41 @@ class Target(object):
             elem.name = data
         elif tag == "fileDependency":
             with suppress(KeyError):
-                fname = self._get_attr(elem._attrib, "file", tag, skip=True)
+                fname = self._get_attr(elem._attrib, "file", tag)
                 ftype = self._get_attr(elem._attrib, "state", tag, None, "Active")
-                ftype = self._get_enum(ftype, tag, None, FileType.ACTIVE)
+                ftype = self._get_enum(ftype, tag, None, FileType)
                 parent[fname] = ftype
         elif tag == "flagDependency":
             with suppress(KeyError):
-                fname = self._get_attr(elem._attrib, "flag", tag, skip=True)
+                fname = self._get_attr(elem._attrib, "flag", tag)
                 fvalue = self._get_attr(elem._attrib, "value", tag, None, "")
                 parent[fname] = fvalue
         elif tag == "gameDependency":
             with suppress(KeyError):
-                parent[None] = self._get_attr(elem._attrib, "version", tag, skip=True)
+                parent[None] = self._get_attr(elem._attrib, "version", tag)
         elif tag in ("optionalFileGroups", "plugins"):
             parent._order = self._get_enum(
-                elem._attrib.get("order", "Ascending"), tag, None, Order.ASCENDING
+                elem._attrib.get("order", "Ascending"), tag, None, Order
             )
         elif tag == "description":
             parent._description = data
         elif tag == "image":
             with suppress(KeyError):
-                parent._image = self._get_attr(elem._attrib, "path", tag, skip=True)
+                parent._image = self._get_attr(elem._attrib, "path", tag)
         elif tag == "flag":
             with suppress(KeyError):
-                fname = self._get_attr(elem._attrib, "name", tag, skip=True)
+                fname = self._get_attr(elem._attrib, "name", tag)
                 parent._map[fname] = data
         elif tag == "type":
             name = self._get_attr(elem._attrib, "name", tag, None, "Optional")
-            otype = self._get_enum(name, tag, elem, OptionType.OPTIONAL)
+            otype = self._get_enum(name, tag, elem, OptionType)
             if isinstance(gparent, Option):
                 gparent._type = otype
             else:  # under pattern tag
                 parent.value = otype
         elif tag == "defaultType":
             name = self._get_attr(elem._attrib, "name", tag, None, "Optional")
-            parent._default = self._get_enum(name, tag, None, OptionType.OPTIONAL)
+            parent._default = self._get_enum(name, tag, None, OptionType)
         elif tag == "pattern":
             gparent[elem.conditions] = elem.value
         self._last = elem
@@ -250,9 +234,7 @@ class Target(object):
 
     def comment(self, text):
         if text:
-            title = "Comment Detected"
-            msg = "There are comments in this fomod, they will be ignored."
-            self._add_warning(ValidationWarning(title, msg, None, critical=True))
+            self._add_warning(CommentsPresentWarning())
 
     def close(self):
         assert not self._stack
@@ -297,10 +279,7 @@ def parse(source, warnings=None, lineno=False):
         try:
             etree.parse(conf, etree.XMLParser(schema=schema))
         except etree.XMLSyntaxError as exc:
-            msg = str(exc)
-            if str(exc).endswith(" (<string>, line 0)"):
-                msg = msg[:-19]
-            warnings.append(ValidationWarning("Syntax Error", msg, None, critical=True))
+            warnings.append(InvalidSyntaxWarning(str(exc)))
     parser_target = Target(warnings)
     if lineno:
         root = _iterparse(conf, parser_target)
@@ -312,14 +291,7 @@ def parse(source, warnings=None, lineno=False):
         if info is not None:
             root._info = etree.parse(info, parser)
     if info is None and warnings is not None:
-        warnings.append(
-            ValidationWarning(
-                "Missing Info",
-                "Info.xml is missing from the fomod subfolder.",
-                None,
-                critical=True,
-            )
-        )
+        warnings.append(MissingInfoWarning())
     return root
 
 

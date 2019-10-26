@@ -16,64 +16,67 @@ from collections import OrderedDict
 from enum import Enum
 
 from .base import HashableMapping, HashableSequence
-from .installer import Installer
+from .warnings import (
+    AtLeastOneWarning,
+    AtMostOneWarning,
+    EmptyConditionsWarning,
+    EmptyGroupWarning,
+    EmptyOptionWarning,
+    EmptyPageWarning,
+    EmptySourceWarning,
+    EmptyTreeWarning,
+    EmptyTypeWarning,
+    ExactlyOneMissingWarning,
+    ExactlyOneRequiredWarning,
+    FileDependencyWarning,
+    GroupNameWarning,
+    ImpossibleFlagWarning,
+    InstallerNameWarning,
+    MissingDestinationWarning,
+    OptionDescriptionWarning,
+    OptionNameWarning,
+    OrderWarning,
+    PageNameWarning,
+    UselessFlagsWarning,
+    VersionDependencyWarning,
+)
 
 
-class ValidationWarning(object):
-    def __init__(self, title, msg, elem, critical=False):
-        self.title = title
-        self.msg = msg
-        self.elem = elem
-        self.critical = critical
-
-    def __eq__(self, other):
-        if isinstance(other, ValidationWarning):
-            return (
-                self.title == other.title
-                and self.msg == other.msg
-                and self.elem == other.elem
-                and self.critical == other.critical
-            )
-        return NotImplemented
-
-    def __repr__(self):
-        return "'<ValidationWarning({}, {}, {}, critical={}) at {}'>".format(
-            repr(self.title),
-            repr(self.msg),
-            repr(self.elem),
-            repr(self.critical),
-            id(self),
-        )
+class FomodEnum(Enum):
+    @classmethod
+    def default(cls):
+        # default becomes the first defined member
+        return list(cls.__members__.values())[0]
 
 
-class ConditionType(Enum):
+class ConditionType(FomodEnum):
     AND = "And"
     OR = "Or"
 
 
-class FileType(Enum):
-    MISSING = "Missing"
-    INACTIVE = "Inactive"
+class FileType(FomodEnum):
     ACTIVE = "Active"
+    INACTIVE = "Inactive"
+    MISSING = "Missing"
 
 
-class Order(Enum):
+class Order(FomodEnum):
     ASCENDING = "Ascending"
     DESCENDING = "Descending"
     EXPLICIT = "Explicit"
 
 
-class GroupType(Enum):
+class GroupType(FomodEnum):
+    ANY = "SelectAny"
+    ALL = "SelectAll"
     ATLEASTONE = "SelectAtLeastOne"
     ATMOSTONE = "SelectAtMostOne"
     EXACTLYONE = "SelectExactlyOne"
-    ALL = "SelectAll"
-    ANY = "SelectAny"
 
 
-class OptionType(Enum):
-    REQUIRED = "Required"
+class OptionType(FomodEnum):
     OPTIONAL = "Optional"
+    REQUIRED = "Required"
     RECOMMENDED = "Recommended"
     NOTUSABLE = "NotUsable"
     COULDBEUSABLE = "CouldBeUsable"
@@ -304,15 +307,11 @@ class Root(BaseFomod):
         if self._file_patterns:
             warnings.extend(self._file_patterns.validate(**callbacks))
         if not self._files and not self._pages and not self._file_patterns:
-            title = "Empty Installer"
-            msg = "This fomod is empty, nothing will be installed."
-            warnings.append(ValidationWarning(title, msg, self))
+            warnings.append(EmptyTreeWarning(self))
 
         for flag, instance in flag_dep:
             if flag not in flag_set:
-                title = "Impossible Flags"
-                msg = 'The flag "{}" is never created or set.'.format(flag)
-                warnings.append(ValidationWarning(title, msg, instance))
+                warnings.append(ImpossibleFlagWarning(flag, instance))
 
         return warnings
 
@@ -358,9 +357,7 @@ class Name(BaseFomod):
     def validate(self, **callbacks):
         warnings = super().validate(**callbacks)
         if not self.name:
-            title = "Missing Installer Name"
-            msg = "This fomod does not have a name."
-            warnings.append(ValidationWarning(title, msg, self))
+            warnings.append(InstallerNameWarning(self))
         return warnings
 
 
@@ -424,16 +421,14 @@ class Conditions(BaseFomod, HashableMapping):
         attrib["operator"] = self._type.value
         head = "<{}{}>".format(self._tag, self._write_attributes(attrib))
         for key, value in self._map.items():
-            if key is None:
+            if key is None and bool(value):
                 child = '<gameDependency version="{}"/>'.format(value)
-            elif isinstance(key, Conditions):
-                if not key:
-                    continue
+            elif isinstance(key, Conditions) and bool(key):
                 child = key.to_string()
             elif isinstance(value, str):  # string key
                 tag = "flagDependency"
                 child = '<{} flag="{}" value="{}"/>'.format(tag, key, value)
-            elif isinstance(value, FileType):  # string key
+            elif isinstance(value, FileType) and bool(key):  # string key
                 tag = "fileDependency"
                 child = '<{} file="{}" state="{}"/>'.format(tag, key, value.value)
             children += "\n" + child
@@ -444,31 +439,17 @@ class Conditions(BaseFomod, HashableMapping):
     def validate(self, **callbacks):
         warnings = super().validate(**callbacks)
         if not self:
-            title = "Empty Conditions"
-            msg = "This element should have at least one condition present."
-            warnings.append(ValidationWarning(title, msg, self, critical=True))
+            warnings.append(EmptyConditionsWarning(self))
         for key, value in self._map.items():
             if isinstance(key, Conditions):
                 warnings.extend(key.validate(**callbacks))
             elif key is None and not value:
-                title = "Empty Version Dependency"
-                msg = "This version dependency is empty " "and may not work correctly."
-                warnings.append(ValidationWarning(title, msg, self))
+                warnings.append(VersionDependencyWarning(self))
             elif isinstance(key, str):
                 if not key and isinstance(value, FileType):
-                    title = "Empty File Dependency"
-                    msg = (
-                        "This file dependency depends on no file, "
-                        "may not work correctly."
-                    )
-                    warnings.append(ValidationWarning(title, msg, self))
+                    warnings.append(FileDependencyWarning(self))
                 elif self._tag == "moduleDependencies" and isinstance(value, str):
-                    title = "Useless Flags"
-                    msg = (
-                        "Flag {} shouldn't be used here "
-                        "since it can't have been set.".format(key)
-                    )
-                    warnings.append(ValidationWarning(title, msg, self))
+                    warnings.append(UselessFlagsWarning(key, self))
         return warnings
 
 
@@ -574,16 +555,9 @@ class File(BaseFomod):
     def validate(self, **callbacks):
         warnings = super().validate(**callbacks)
         if not self.src:
-            title = "Empty Source Field"
-            msg = "No source specified, this could lead to problems installing."
-            warnings.append(ValidationWarning(title, msg, self, critical=True))
+            warnings.append(EmptySourceWarning(self))
         if self.dst is None:
-            title = "Missing Destination Field"
-            msg = (
-                "If omitted, the destination is the same as the source."
-                " This may not be intended."
-            )
-            warnings.append(ValidationWarning(title, msg, self))
+            warnings.append(MissingDestinationWarning(self))
         return warnings
 
 
@@ -639,13 +613,7 @@ class Pages(BaseFomod, HashableSequence):
     def validate(self, **callbacks):
         warnings = super().validate(**callbacks)
         if self.order is not Order.EXPLICIT:
-            title = "Non Explicit Page Order"
-            msg = (
-                "This installer has {} order, which reorders "
-                "the pages during installation. Use Explicit "
-                "order to avoid this.".format(self.order.value)
-            )
-            warnings.append(ValidationWarning(title, msg, self, critical=True))
+            warnings.append(OrderWarning(self.order, self))
         for page in self._page_list:
             warnings.extend(page.validate(**callbacks))
         return warnings
@@ -735,21 +703,11 @@ class Page(BaseFomod, HashableSequence):
     def validate(self, **callbacks):
         warnings = super().validate(**callbacks)
         if not self:
-            title = "Empty Page"
-            msg = "This page is empty."
-            warnings.append(ValidationWarning(title, msg, self))
+            warnings.append(EmptyPageWarning(self))
         if not self._name:
-            title = "Empty Page Name"
-            msg = "This page has no name."
-            warnings.append(ValidationWarning(title, msg, self))
+            warnings.append(PageNameWarning(self))
         if self.order is not Order.EXPLICIT:
-            title = "Non Explicit Group Order"
-            msg = (
-                "This page has {} order, which reorders "
-                "the groups during installation. Use Explicit "
-                "order to avoid this.".format(self.order.value)
-            )
-            warnings.append(ValidationWarning(title, msg, self, critical=True))
+            warnings.append(OrderWarning(self.order, self))
         if self._conditions:
             warnings.extend(self._conditions.validate(**callbacks))
         for group in self._group_list:
@@ -837,21 +795,11 @@ class Group(BaseFomod, HashableSequence):
     def validate(self, **callbacks):
         warnings = super().validate(**callbacks)
         if not self:
-            title = "Empty Group"
-            msg = "This group is empty."
-            warnings.append(ValidationWarning(title, msg, self))
+            warnings.append(EmptyGroupWarning(self))
         if not self._name:
-            title = "Empty Group Name"
-            msg = "This group has no name."
-            warnings.append(ValidationWarning(title, msg, self))
+            warnings.append(GroupNameWarning(self))
         if self.order is not Order.EXPLICIT:
-            title = "Non Explicit Option Order"
-            msg = (
-                "This group has {} order, which reorders "
-                "the options during installation. Use Explicit "
-                "order to avoid this.".format(self.order.value)
-            )
-            warnings.append(ValidationWarning(title, msg, self, critical=True))
+            warnings.append(OrderWarning(self.order, self))
 
         option_num = len(self._option_list)
         required_options = 0
@@ -871,33 +819,15 @@ class Group(BaseFomod, HashableSequence):
                     notusable_options += 1
 
         if notusable_options == option_num:
-            title = "Not Enough Selectable Options"
             if self.type is GroupType.ATLEASTONE:
-                msg = (
-                    "This group needs at least one selectable "
-                    "option but none are available."
-                )
-                warnings.append(ValidationWarning(title, msg, self, critical=True))
+                warnings.append(AtLeastOneWarning(self))
             elif self.type is GroupType.EXACTLYONE:
-                msg = (
-                    "This group needs exactly one selectable "
-                    "option but none are available."
-                )
-                warnings.append(ValidationWarning(title, msg, self, critical=True))
+                warnings.append(ExactlyOneMissingWarning(self))
         elif required_options >= 2:
-            title = "Too Many Required Options"
             if self.type is GroupType.ATMOSTONE:
-                msg = (
-                    "This group can have one option selected "
-                    "at most but at least two are required."
-                )
-                warnings.append(ValidationWarning(title, msg, self, critical=True))
+                warnings.append(AtMostOneWarning(self))
             elif self.type is GroupType.EXACTLYONE:
-                msg = (
-                    "This group can only have exactly one option "
-                    "selected but at least two are required."
-                )
-                warnings.append(ValidationWarning(title, msg, self, critical=True))
+                warnings.append(ExactlyOneRequiredWarning(self))
         return warnings
 
 
@@ -1001,17 +931,11 @@ class Option(BaseFomod):
     def validate(self, **callbacks):
         warnings = super().validate(**callbacks)
         if not self.name:
-            title = "Empty Option Name"
-            msg = "This option has no name."
-            warnings.append(ValidationWarning(title, msg, self))
+            warnings.append(OptionNameWarning(self))
         if not self.description:
-            title = "Empty Option Description"
-            msg = "This option has no description."
-            warnings.append(ValidationWarning(title, msg, self))
+            warnings.append(OptionDescriptionWarning(self))
         if not self.files and not self.flags:
-            title = "Option Does Nothing"
-            msg = "This option installs no files and sets no flags."
-            warnings.append(ValidationWarning(title, msg, self))
+            warnings.append(EmptyOptionWarning(self))
         if self.files:
             warnings.extend(self.files.validate(**callbacks))
         if self.flags:
@@ -1114,9 +1038,7 @@ class Type(BaseFomod, HashableMapping):
     def validate(self, **callbacks):
         warnings = super().validate(**callbacks)
         if not self:
-            title = "Empty Type Descriptor"
-            msg = "This type descriptor is empty and will never set a type."
-            warnings.append(ValidationWarning(title, msg, self, critical=True))
+            warnings.append(EmptyTypeWarning(self))
         for key in self._map:
             warnings.extend(key.validate(**callbacks))
         return warnings

@@ -63,8 +63,9 @@ target/
 #Ipython Notebook
 .ipynb_checkpoints
 
-#PyCharm
+# IDE
 .idea/
+.vscode/
 
 #Vagrant
 .vagrant/

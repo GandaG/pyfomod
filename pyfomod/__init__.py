@@ -33,12 +33,12 @@ __all__ = [
     "Pages",
     "Root",
     "Type",
-    "ValidationWarning",
     "FailedCondition",
     "Installer",
     "InvalidSelection",
     "parse",
     "write",
+    "ValidationWarning",
 ]
 
 from .fomod import (
@@ -58,7 +58,7 @@ from .fomod import (
     Pages,
     Root,
     Type,
-    ValidationWarning,
 )
 from .installer import FailedCondition, Installer, InvalidSelection
 from .parser import parse, write
+from .warnings import ValidationWarning
