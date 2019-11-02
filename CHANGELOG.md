@@ -1,5 +1,9 @@
 ## Changelog
 
+#### UNRELEASED
+
+* Fixed TypeError when passing strings to *path* argument of `Installer`.
+
 #### 1.2.0
 
 * Added installer shortcut to `Root`.

@@ -15,6 +15,7 @@
 import os
 from collections import OrderedDict
 from collections.abc import Sequence
+from contextlib import suppress
 from distutils.version import LooseVersion
 from pathlib import Path
 
@@ -143,12 +144,14 @@ class Installer(object):
     def __init__(self, root, path=None, game_version=None, file_type=None):
         self.game_version = game_version
         self.file_type = file_type
+        self.path = None
         if isinstance(root, fomod.Root):
             self.root = root
         else:
             self.root = parser.parse(root)
-            if isinstance(root, (str, Path)) and path is None:
-                self.path = root
+            if path is None:
+                with suppress(TypeError):
+                    self.path = Path(root)
         if path is not None:
             self.path = Path(path)
         self._current_page = None
