@@ -261,16 +261,13 @@ class Installer(object):
                 pass
             else:
                 conditional_files.extend(FileInfo.process_files(files, self.path))
-        file_dict = {}  # src -> dst
-        priority_dict = {}  # dst -> priority
+        files = []
         for info in required_files + user_files + conditional_files:
-            if info.destination in priority_dict:
-                if priority_dict[info.destination] > info.priority:
-                    continue
-                del file_dict[info.destination]
-            file_dict[info.destination] = info.source
-            priority_dict[info.destination] = info.priority
-        return {b: a for a, b in file_dict.items()}
+            files.append(info)
+        return [
+            (f.source, f.destination) 
+            for f in sorted(files, key=lambda f: f.priority)
+        ]
 
     def flags(self):
         flag_dict = {}
