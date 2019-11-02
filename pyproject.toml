@@ -4,7 +4,7 @@ build-backend = "poetry.masonry.api"
 
 [tool.poetry]
 name = "pyfomod"
-version = "1.2.0"
+version = "1.2.1"
 description = "A high-level fomod library written in Python."
 license = "Apache-2.0"
 authors = ["Daniel Nunes <daniel.henri.nunes@gmail.com>"]

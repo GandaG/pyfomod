@@ -1,6 +1,6 @@
 ## Changelog
 
-#### UNRELEASED
+#### 1.2.1
 
 * Fixed TypeError when passing strings to *path* argument of `Installer`.
 
