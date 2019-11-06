@@ -1,5 +1,12 @@
 ## Changelog
 
+#### UNRELEASED
+
+* **BREAKING** - Complete validation rework, replaced `ValidationWarning` with `FomodError`:
+  * Replaced subclasses with an enum - should improve flexibility;
+  * Replaced the error type boolean `critical` with an enum for better granularity.
+* **BREAKING** - Removed callbacks from `validate()` methods.
+
 #### 1.2.1
 
 * Fixed TypeError when passing strings to *path* argument of `Installer`.

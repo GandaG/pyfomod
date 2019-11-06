@@ -1,7 +1,8 @@
 import textwrap
 from collections import OrderedDict
 
-from pyfomod import fomod, warnings
+from pyfomod import fomod
+from pyfomod.errors import ErrorID, ErrorKind, FomodError
 
 
 class TestBaseFomod:
@@ -98,21 +99,14 @@ xsi:noNamespaceSchemaLocation="http://qconsulting.ca/fo3/ModConfig5.0.xsd">
         assert self.root.to_string() == expected
 
     def test_validate(self):
-        expected = warnings.ValidationWarning(
-            "Empty Fomod Tree",
-            "This fomod is empty, nothing will be installed.",
-            self.root,
-        )
+        expected = FomodError(ErrorKind.NOTE, ErrorID.EMPTY_TREE, self.root)
         assert expected in self.root.validate()
         page = fomod.Page()
         page.conditions["boop"] = "beep"
         page.append(fomod.Group())
         self.root.pages.append(page)
-        expected = warnings.ValidationWarning(
-            "Impossible Flag",
-            "The flag 'boop' is never created or set.",
-            page.conditions,
-            critical=True,
+        expected = FomodError(
+            ErrorKind.WARNING, ErrorID.IMPOSSIBLE_FLAG, page.conditions, name="boop"
         )
         assert expected in self.root.validate()
 
@@ -155,8 +149,12 @@ class TestName:
         assert self.name.to_string() == expected
 
     def test_validate(self):
-        expected = warnings.ValidationWarning(
-            "Missing Installer Name", "This fomod does not have a name.", self.name
+        expected = FomodError(
+            ErrorKind.NOTE,
+            ErrorID.MISSING_NAME,
+            self.name,
+            title="Installer",
+            nameless="installer",
         )
         assert expected in self.name.validate()
 
@@ -201,41 +199,46 @@ class TestConditions:
         assert self.cond.to_string() == expected
 
     def test_validate(self):
-        expected = warnings.ValidationWarning(
-            "Empty Conditions",
-            "This element should have at least one condition present.",
+        expected = FomodError(
+            ErrorKind.WARNING,
+            ErrorID.EMPTY_ELEMENT,
             self.cond,
-            critical=False,
+            title="Conditions",
+            error_msg="This element should have at least one condition present.",
         )
         assert expected in self.cond.validate()
         nest = fomod.Conditions()
         self.cond[nest] = None
-        expected = warnings.ValidationWarning(
-            "Empty Conditions",
-            "This element should have at least one condition present.",
+        expected = FomodError(
+            ErrorKind.WARNING,
+            ErrorID.EMPTY_ELEMENT,
             nest,
-            critical=False,
+            title="Conditions",
+            error_msg="This element should have at least one condition present.",
         )
         assert expected in self.cond.validate()
         self.cond[None] = ""
-        expected = warnings.ValidationWarning(
-            "Empty Version Dependency", "This version dependency is empty.", self.cond
+        expected = FomodError(
+            ErrorKind.WARNING,
+            ErrorID.EMPTY_ELEMENT,
+            self.cond,
+            title="Version Dependency",
+            error_msg="No version specified.",
         )
         assert expected in self.cond.validate()
         self.cond[""] = fomod.FileType.ACTIVE
-        expected = warnings.ValidationWarning(
-            "Empty File Dependency",
-            "This file dependency depends on no file, may not work correctly.",
+        expected = FomodError(
+            ErrorKind.WARNING,
+            ErrorID.EMPTY_ELEMENT,
             self.cond,
+            title="File Dependency",
+            error_msg="No file specified.",
         )
         assert expected in self.cond.validate()
         self.cond._tag = "moduleDependencies"
         self.cond["boop"] = "beep"
-        expected = warnings.ValidationWarning(
-            "Impossible Flag",
-            "Flag boop shouldn't be used here since it can't have been set.",
-            self.cond,
-            critical=True,
+        expected = FomodError(
+            ErrorKind.ERROR, ErrorID.IMPOSSIBLE_FLAG, self.cond, name="boop"
         )
         assert expected in self.cond.validate()
 
@@ -305,11 +308,12 @@ class TestFile:
         assert self.file.to_string() == expected
 
     def test_validate(self):
-        expected = warnings.ValidationWarning(
-            "Empty Source Field",
-            "No source specified, this could lead to problems installing.",
+        expected = FomodError(
+            ErrorKind.ERROR,
+            ErrorID.EMPTY_ELEMENT,
             self.file,
-            critical=True,
+            title="File Source",
+            error_msg="No file source specified.",
         )
         assert expected in self.file.validate()
 
@@ -382,12 +386,20 @@ class TestPage:
         assert self.page.to_string() == expected
 
     def test_validate(self):
-        expected = warnings.ValidationWarning(
-            "Empty Page Name", "This page has no name.", self.page
+        expected = FomodError(
+            ErrorKind.NOTE,
+            ErrorID.MISSING_NAME,
+            self.page,
+            title="Page",
+            nameless="page",
         )
         assert expected in self.page.validate()
-        expected = warnings.ValidationWarning(
-            "Empty Page", "This page is empty.", self.page
+        expected = FomodError(
+            ErrorKind.NOTE,
+            ErrorID.EMPTY_ELEMENT,
+            self.page,
+            title="Page",
+            error_msg="This page is empty.",
         )
         assert expected in self.page.validate()
 
@@ -431,31 +443,40 @@ class TestGroup:
         assert self.group.to_string() == expected
 
     def test_validate(self):
-        expected = warnings.ValidationWarning(
-            "Empty Group", "This group is empty.", self.group
+        expected = FomodError(
+            ErrorKind.NOTE,
+            ErrorID.EMPTY_ELEMENT,
+            self.group,
+            title="Group",
+            error_msg="This group is empty.",
         )
         assert expected in self.group.validate()
-        expected = warnings.ValidationWarning(
-            "Empty Group Name", "This group has no name.", self.group
+        expected = FomodError(
+            ErrorKind.NOTE,
+            ErrorID.MISSING_NAME,
+            self.group,
+            title="Group",
+            nameless="group",
         )
         assert expected in self.group.validate()
 
         self.group.type = fomod.GroupType.ATLEASTONE
-        expected = warnings.ValidationWarning(
-            "Not Enough Selectable Options",
-            "This group needs at least one selectable "
-            "option but none are available.",
+        expected = FomodError(
+            ErrorKind.ERROR,
+            ErrorID.TOO_FEW_OPTIONS,
             self.group,
-            critical=True,
+            name=self.group.name,
+            group_type="at least one",
         )
         assert expected in self.group.validate()
 
         self.group.type = fomod.GroupType.EXACTLYONE
-        expected = warnings.ValidationWarning(
-            "Not Enough Selectable Options",
-            "This group needs exactly one selectable " "option but none are available.",
+        expected = FomodError(
+            ErrorKind.ERROR,
+            ErrorID.TOO_FEW_OPTIONS,
             self.group,
-            critical=True,
+            name=self.group.name,
+            group_type="exactly one",
         )
         assert expected in self.group.validate()
 
@@ -467,22 +488,22 @@ class TestGroup:
         self.group.append(option2)
 
         self.group.type = fomod.GroupType.ATMOSTONE
-        expected = warnings.ValidationWarning(
-            "Too Many Required Options",
-            "This group can have one option selected "
-            "at most but at least two are required.",
+        expected = FomodError(
+            ErrorKind.ERROR,
+            ErrorID.TOO_MANY_OPTIONS,
             self.group,
-            critical=True,
+            name=self.group.name,
+            group_type="at most one",
         )
         assert expected in self.group.validate()
 
         self.group.type = fomod.GroupType.EXACTLYONE
-        expected = warnings.ValidationWarning(
-            "Too Many Required Options",
-            "This group can only have exactly one "
-            "option selected but at least two are required.",
+        expected = FomodError(
+            ErrorKind.ERROR,
+            ErrorID.TOO_MANY_OPTIONS,
             self.group,
-            critical=True,
+            name=self.group.name,
+            group_type="exactly one",
         )
         assert expected in self.group.validate()
 
@@ -559,18 +580,25 @@ class TestOption:
 
     def test_validate(self):
         expected = [
-            warnings.ValidationWarning(
-                "Empty Option Name", "This option has no name.", self.option
-            ),
-            warnings.ValidationWarning(
-                "Empty Option Description",
-                "This option has no description.",
+            FomodError(
+                ErrorKind.NOTE,
+                ErrorID.MISSING_NAME,
                 self.option,
+                title="Option",
+                nameless="option",
             ),
-            warnings.ValidationWarning(
-                "Option Does Nothing",
-                "This option installs no files and sets no flags.",
+            FomodError(
+                ErrorKind.NOTE,
+                ErrorID.MISSING_DESCRIPTION,
                 self.option,
+                name=self.option.name,
+            ),
+            FomodError(
+                ErrorKind.NOTE,
+                ErrorID.EMPTY_ELEMENT,
+                self.option,
+                title="Option",
+                error_msg="This option is empty.",
             ),
         ]
         assert self.option.validate() == expected
@@ -623,11 +651,13 @@ class TestType:
         assert self.type.to_string() == expected
 
     def test_validate(self):
-        expected = warnings.ValidationWarning(
-            "Empty Type Descriptor",
-            "This type descriptor is empty and will never set a type.",
+        expected = FomodError(
+            ErrorKind.NOTE,
+            ErrorID.EMPTY_ELEMENT,
             self.type,
-            critical=True,
+            title="Type Descriptor",
+            error_msg="This type descriptor is empty and won't "
+            "set any type besides the default.",
         )
         assert expected in self.type.validate()
 

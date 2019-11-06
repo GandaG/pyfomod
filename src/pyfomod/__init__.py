@@ -13,6 +13,9 @@
 # limitations under the License.
 
 __all__ = [
+    "ErrorID",
+    "ErrorKind",
+    "FomodError",
     "Conditions",
     "ConditionType",
     "FilePatterns",
@@ -34,9 +37,9 @@ __all__ = [
     "InvalidSelection",
     "parse",
     "write",
-    "ValidationWarning",
 ]
 
+from .errors import ErrorID, ErrorKind, FomodError
 from .fomod import (
     Conditions,
     ConditionType,
@@ -57,4 +60,3 @@ from .fomod import (
 )
 from .installer import FailedCondition, Installer, InvalidSelection
 from .parser import parse, write
-from .warnings import ValidationWarning

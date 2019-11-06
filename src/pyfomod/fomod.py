@@ -16,30 +16,7 @@ from collections import OrderedDict
 from enum import Enum
 
 from .base import HashableMapping, HashableSequence
-from .warnings import (
-    AtLeastOneWarning,
-    AtMostOneWarning,
-    EmptyConditionsWarning,
-    EmptyGroupWarning,
-    EmptyOptionWarning,
-    EmptyPageWarning,
-    EmptySourceWarning,
-    EmptyTreeWarning,
-    EmptyTypeWarning,
-    ExactlyOneMissingWarning,
-    ExactlyOneRequiredWarning,
-    FileDependencyWarning,
-    GroupNameWarning,
-    ImpossibleFlagWarning,
-    InstallerNameWarning,
-    MissingDestinationWarning,
-    OptionDescriptionWarning,
-    OptionNameWarning,
-    OrderWarning,
-    PageNameWarning,
-    UselessFlagsWarning,
-    VersionDependencyWarning,
-)
+from .errors import ErrorID, ErrorKind, FomodError
 
 
 class FomodEnum(Enum):
@@ -96,13 +73,8 @@ class BaseFomod(object):
     def to_string(self):
         raise NotImplementedError()
 
-    def validate(self, **callbacks):
-        warnings = []
-        for key, funcs in callbacks.items():
-            if isinstance(self, globals()[key]):
-                for func in funcs:
-                    warnings.extend(func(self))
-        return warnings
+    def validate(self):
+        raise NotImplementedError()
 
     @staticmethod
     def _write_attributes(attrib):
@@ -273,8 +245,8 @@ class Root(BaseFomod):
         tail = "</{}>".format(self._tag)
         return "{}{}\n{}".format(head, children, tail)
 
-    def validate(self, **callbacks):
-        warnings = super().validate(**callbacks)
+    def validate(self):
+        errors = []
         flag_set = []
         flag_dep = []
 
@@ -287,33 +259,42 @@ class Root(BaseFomod):
                     result.append((key, conditions))
             return result
 
-        # the lambdas need the 'or []' to comply with returning a list
-        callbacks.setdefault("Conditions", []).append(
-            lambda x: flag_dep.extend(parse_conditions(x)) or []
-        )
-        callbacks.setdefault("Flags", []).append(
-            lambda x: flag_set.extend(x.keys()) or []
-        )
-        warnings.extend(self._info.validate(**callbacks))
-        warnings.extend(self._name.validate(**callbacks))
-        if self._image._attrib:
-            warnings.extend(self._image.validate(**callbacks))
-        if self._conditions:
-            warnings.extend(self._conditions.validate(**callbacks))
-        if self._files:
-            warnings.extend(self._files.validate(**callbacks))
-        if self._pages:
-            warnings.extend(self._pages.validate(**callbacks))
-        if self._file_patterns:
-            warnings.extend(self._file_patterns.validate(**callbacks))
-        if not self._files and not self._pages and not self._file_patterns:
-            warnings.append(EmptyTreeWarning(self))
+        collect_dep = lambda c: flag_dep.extend(parse_conditions(c))
+        collect_set = lambda f: flag_set.extend(f.keys())
 
+        collect_dep(self._conditions)
+        for page in self._pages:
+            collect_dep(page.conditions)
+            for group in page:
+                for option in group:
+                    collect_set(option.flags)
+                    if isinstance(option.type, Type):
+                        for key in option.type.keys():
+                            collect_dep(key)
+        for key in self._file_patterns.keys():
+            collect_dep(key)
         for flag, instance in flag_dep:
             if flag not in flag_set:
-                warnings.append(ImpossibleFlagWarning(flag, instance))
+                error = FomodError(
+                    ErrorKind.WARNING, ErrorID.IMPOSSIBLE_FLAG, instance, name=flag
+                )
+                errors.append(error)
 
-        return warnings
+        errors.extend(self._name.validate())
+        if self._image._attrib:
+            errors.extend(self._image.validate())
+        if self._conditions:
+            errors.extend(self._conditions.validate())
+        if self._files:
+            errors.extend(self._files.validate())
+        if self._pages:
+            errors.extend(self._pages.validate())
+        if self._file_patterns:
+            errors.extend(self._file_patterns.validate())
+        if not self._files and not self._pages and not self._file_patterns:
+            error = FomodError(ErrorKind.NOTE, ErrorID.EMPTY_TREE, self)
+            errors.append(error)
+        return errors
 
 
 class Info(BaseFomod):
@@ -354,11 +335,17 @@ class Name(BaseFomod):
         attrib = self._write_attributes(self._attrib)
         return "<{0}{1}>{2}</{0}>".format(self._tag, attrib, self.name)
 
-    def validate(self, **callbacks):
-        warnings = super().validate(**callbacks)
+    def validate(self):
         if not self.name:
-            warnings.append(InstallerNameWarning(self))
-        return warnings
+            error = FomodError(
+                ErrorKind.NOTE,
+                ErrorID.MISSING_NAME,
+                self,
+                title="Installer",
+                nameless="installer",
+            )
+            return [error]
+        return []
 
 
 class Image(BaseFomod):
@@ -436,21 +423,45 @@ class Conditions(BaseFomod, HashableMapping):
         tail = "</{}>".format(self._tag)
         return "{}{}\n{}".format(head, children, tail)
 
-    def validate(self, **callbacks):
-        warnings = super().validate(**callbacks)
+    def validate(self):
+        errors = []
         if not self:
-            warnings.append(EmptyConditionsWarning(self))
+            error = FomodError(
+                ErrorKind.WARNING,
+                ErrorID.EMPTY_ELEMENT,
+                self,
+                title="Conditions",
+                error_msg="This element should have at least one condition present.",
+            )
+            errors.append(error)
         for key, value in self._map.items():
             if isinstance(key, Conditions):
-                warnings.extend(key.validate(**callbacks))
+                errors.extend(key.validate())
             elif key is None and not value:
-                warnings.append(VersionDependencyWarning(self))
+                error = FomodError(
+                    ErrorKind.WARNING,
+                    ErrorID.EMPTY_ELEMENT,
+                    self,
+                    title="Version Dependency",
+                    error_msg="No version specified.",
+                )
+                errors.append(error)
             elif isinstance(key, str):
                 if not key and isinstance(value, FileType):
-                    warnings.append(FileDependencyWarning(self))
+                    error = FomodError(
+                        ErrorKind.WARNING,
+                        ErrorID.EMPTY_ELEMENT,
+                        self,
+                        title="File Dependency",
+                        error_msg="No file specified.",
+                    )
+                    errors.append(error)
                 elif self._tag == "moduleDependencies" and isinstance(value, str):
-                    warnings.append(UselessFlagsWarning(key, self))
-        return warnings
+                    error = FomodError(
+                        ErrorKind.ERROR, ErrorID.IMPOSSIBLE_FLAG, self, name=key
+                    )
+                    errors.append(error)
+        return errors
 
 
 class Files(BaseFomod, HashableMapping):
@@ -528,11 +539,11 @@ class Files(BaseFomod, HashableMapping):
         tail = "</{}>".format(self._tag)
         return "{}{}\n{}".format(head, children, tail)
 
-    def validate(self, **callbacks):
-        warnings = super().validate(**callbacks)
+    def validate(self):
+        errors = []
         for child in self._file_list:
-            warnings.extend(child.validate(**callbacks))
-        return warnings
+            errors.extend(child.validate())
+        return errors
 
 
 class File(BaseFomod):
@@ -552,13 +563,23 @@ class File(BaseFomod):
             del attrib["destination"]
         return "<{}{}/>".format(self._tag, self._write_attributes(attrib))
 
-    def validate(self, **callbacks):
-        warnings = super().validate(**callbacks)
+    def validate(self):
+        errors = []
         if not self.src:
-            warnings.append(EmptySourceWarning(self))
+            error = FomodError(
+                ErrorKind.ERROR,
+                ErrorID.EMPTY_ELEMENT,
+                self,
+                title="File Source",
+                error_msg="No file source specified.",
+            )
+            errors.append(error)
         if self.dst is None:
-            warnings.append(MissingDestinationWarning(self))
-        return warnings
+            error = FomodError(
+                ErrorKind.WARNING, ErrorID.MISSING_DESTINATION, self, name=self.src
+            )
+            errors.append(error)
+        return errors
 
 
 class Pages(BaseFomod, HashableSequence):
@@ -610,13 +631,16 @@ class Pages(BaseFomod, HashableSequence):
         tail = "</{}>".format(self._tag)
         return "{}{}\n{}".format(head, children, tail)
 
-    def validate(self, **callbacks):
-        warnings = super().validate(**callbacks)
+    def validate(self):
+        errors = []
         if self.order is not Order.EXPLICIT:
-            warnings.append(OrderWarning(self.order, self))
+            error = FomodError(
+                ErrorKind.NOTE, ErrorID.NON_EXPLICIT_ORDER, self, order=self.order.value
+            )
+            errors.append(error)
         for page in self._page_list:
-            warnings.extend(page.validate(**callbacks))
-        return warnings
+            errors.extend(page.validate())
+        return errors
 
 
 class Page(BaseFomod, HashableSequence):
@@ -700,19 +724,36 @@ class Page(BaseFomod, HashableSequence):
         children = children.replace("\n", "\n  ")
         return "{}{}\n{}".format(head, children, tail)
 
-    def validate(self, **callbacks):
-        warnings = super().validate(**callbacks)
+    def validate(self):
+        errors = []
         if not self:
-            warnings.append(EmptyPageWarning(self))
+            error = FomodError(
+                ErrorKind.NOTE,
+                ErrorID.EMPTY_ELEMENT,
+                self,
+                title="Page",
+                error_msg="This page is empty.",
+            )
+            errors.append(error)
         if not self._name:
-            warnings.append(PageNameWarning(self))
+            error = FomodError(
+                ErrorKind.NOTE,
+                ErrorID.MISSING_NAME,
+                self,
+                title="Page",
+                nameless="page",
+            )
+            errors.append(error)
         if self.order is not Order.EXPLICIT:
-            warnings.append(OrderWarning(self.order, self))
+            error = FomodError(
+                ErrorKind.NOTE, ErrorID.NON_EXPLICIT_ORDER, self, order=self.order.value
+            )
+            errors.append(error)
         if self._conditions:
-            warnings.extend(self._conditions.validate(**callbacks))
+            errors.extend(self._conditions.validate())
         for group in self._group_list:
-            warnings.extend(group.validate(**callbacks))
-        return warnings
+            errors.extend(group.validate())
+        return errors
 
 
 class Group(BaseFomod, HashableSequence):
@@ -792,21 +833,38 @@ class Group(BaseFomod, HashableSequence):
         children = children.replace("\n", "\n  ")
         return "{}{}\n{}".format(head, children, tail)
 
-    def validate(self, **callbacks):
-        warnings = super().validate(**callbacks)
+    def validate(self):
+        errors = []
         if not self:
-            warnings.append(EmptyGroupWarning(self))
+            error = FomodError(
+                ErrorKind.NOTE,
+                ErrorID.EMPTY_ELEMENT,
+                self,
+                title="Group",
+                error_msg="This group is empty.",
+            )
+            errors.append(error)
         if not self._name:
-            warnings.append(GroupNameWarning(self))
+            error = FomodError(
+                ErrorKind.NOTE,
+                ErrorID.MISSING_NAME,
+                self,
+                title="Group",
+                nameless="group",
+            )
+            errors.append(error)
         if self.order is not Order.EXPLICIT:
-            warnings.append(OrderWarning(self.order, self))
+            error = FomodError(
+                ErrorKind.NOTE, ErrorID.NON_EXPLICIT_ORDER, self, order=self.order.value
+            )
+            errors.append(error)
 
         option_num = len(self._option_list)
         required_options = 0
         notusable_options = 0
 
         for option in self._option_list:
-            warnings.extend(option.validate(**callbacks))
+            errors.extend(option.validate())
             if isinstance(option.type, OptionType):
                 if option.type is OptionType.REQUIRED:
                     required_options += 1
@@ -818,17 +876,23 @@ class Group(BaseFomod, HashableSequence):
                 elif OptionType.NOTUSABLE in option.type.values():
                     notusable_options += 1
 
+        payload = {"name": self._name}
         if notusable_options == option_num:
-            if self.type is GroupType.ATLEASTONE:
-                warnings.append(AtLeastOneWarning(self))
-            elif self.type is GroupType.EXACTLYONE:
-                warnings.append(ExactlyOneMissingWarning(self))
+            err_id = ErrorID.TOO_FEW_OPTIONS
+            if self._type is GroupType.ATLEASTONE:
+                payload["group_type"] = "at least one"
+            elif self._type is GroupType.EXACTLYONE:
+                payload["group_type"] = "exactly one"
         elif required_options >= 2:
-            if self.type is GroupType.ATMOSTONE:
-                warnings.append(AtMostOneWarning(self))
-            elif self.type is GroupType.EXACTLYONE:
-                warnings.append(ExactlyOneRequiredWarning(self))
-        return warnings
+            err_id = ErrorID.TOO_MANY_OPTIONS
+            if self._type is GroupType.ATMOSTONE:
+                payload["group_type"] = "at most one"
+            elif self._type is GroupType.EXACTLYONE:
+                payload["group_type"] = "exactly one"
+        if payload.get("group_type") is not None:
+            error = FomodError(ErrorKind.ERROR, err_id, self, **payload)
+            errors.append(error)
+        return errors
 
 
 class Option(BaseFomod):
@@ -928,21 +992,38 @@ class Option(BaseFomod):
         tail = "</{}>".format(self._tag)
         return "{}{}\n{}".format(head, children, tail)
 
-    def validate(self, **callbacks):
-        warnings = super().validate(**callbacks)
-        if not self.name:
-            warnings.append(OptionNameWarning(self))
-        if not self.description:
-            warnings.append(OptionDescriptionWarning(self))
+    def validate(self):
+        errors = []
+        if not self._name:
+            error = FomodError(
+                ErrorKind.NOTE,
+                ErrorID.MISSING_NAME,
+                self,
+                title="Option",
+                nameless="option",
+            )
+            errors.append(error)
+        if not self._description:
+            error = FomodError(
+                ErrorKind.NOTE, ErrorID.MISSING_DESCRIPTION, self, name=self._name
+            )
+            errors.append(error)
         if not self.files and not self.flags:
-            warnings.append(EmptyOptionWarning(self))
+            error = FomodError(
+                ErrorKind.NOTE,
+                ErrorID.EMPTY_ELEMENT,
+                self,
+                title="Option",
+                error_msg="This option is empty.",
+            )
+            errors.append(error)
         if self.files:
-            warnings.extend(self.files.validate(**callbacks))
+            errors.extend(self.files.validate())
         if self.flags:
-            warnings.extend(self.flags.validate(**callbacks))
+            errors.extend(self.flags.validate())
         if isinstance(self.type, Type):
-            warnings.extend(self.type.validate(**callbacks))
-        return warnings
+            errors.extend(self.type.validate())
+        return errors
 
 
 class Flags(BaseFomod, HashableMapping):
@@ -1035,13 +1116,23 @@ class Type(BaseFomod, HashableMapping):
         tail = "</{}>".format(self._tag)
         return "{}{}\n{}".format(head, children, tail)
 
-    def validate(self, **callbacks):
-        warnings = super().validate(**callbacks)
+    def validate(self):
+        errors = []
         if not self:
-            warnings.append(EmptyTypeWarning(self))
+            error = FomodError(
+                ErrorKind.NOTE,
+                ErrorID.EMPTY_ELEMENT,
+                self,
+                title="Type Descriptor",
+                error_msg=(
+                    "This type descriptor is empty and won't "
+                    "set any type besides the default."
+                ),
+            )
+            errors.append(error)
         for key in self._map:
-            warnings.extend(key.validate(**callbacks))
-        return warnings
+            errors.extend(key.validate())
+        return errors
 
 
 class FilePatterns(BaseFomod, HashableMapping):
@@ -1086,9 +1177,9 @@ class FilePatterns(BaseFomod, HashableMapping):
         tail = "</{}>".format(self._tag)
         return "{}{}\n{}".format(head, children, tail)
 
-    def validate(self, **callbacks):
-        warnings = super().validate(**callbacks)
+    def validate(self):
+        errors = []
         for key, value in self._map.items():
-            warnings.extend(key.validate(**callbacks))
-            warnings.extend(value.validate(**callbacks))
-        return warnings
+            errors.extend(key.validate())
+            errors.extend(value.validate())
+        return errors

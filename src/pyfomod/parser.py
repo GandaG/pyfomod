@@ -14,12 +14,14 @@
 
 import errno
 import os
+import re
 from collections import OrderedDict
 from contextlib import suppress
 from pathlib import Path
 
 from lxml import etree
 
+from .errors import ErrorID, ErrorKind, FomodError
 from .fomod import (
     Conditions,
     ConditionType,
@@ -41,14 +43,6 @@ from .fomod import (
     Root,
     Type,
 )
-from .warnings import (
-    CommentsPresentWarning,
-    DefaultAttributeWarning,
-    InvalidEnumWarning,
-    InvalidSyntaxWarning,
-    MissingInfoWarning,
-    RequiredAttributeWarning,
-)
 
 SCHEMA_PATH = Path(__file__).parent / "fomod.xsd"
 
@@ -68,32 +62,58 @@ class PatternPlaceholder(Placeholder):
 
 
 class Target(object):
-    def __init__(self, warnings=None):
-        self.warnings = warnings
+    def __init__(self, errors=None):
+        self.errors = errors
         self._stack = []
         self._data = []
         self._last = None
 
-    def _add_warning(self, warning):
-        if self.warnings is not None:
-            self.warnings.append(warning)
+    def _add_error(self, error):
+        if self.errors is not None:
+            self.errors.append(error)
 
     def _get_enum(self, actual, tag, elem, enum_type):
         try:
             return enum_type(actual)
         except ValueError:
-            warning = InvalidEnumWarning(tag, enum_type, actual, elem)
-            self._add_warning(warning)
-            return enum_type.default()
+            name = " ".join(
+                re.findall(r"[A-Z]?[a-z]+|[A-Z]+(?=[A-Z]|$)", enum_type.__name__)
+            )
+            values = "', '".join(x.value for x in enum_type)
+            default = enum_type.default()
+            error = FomodError(
+                ErrorKind.ERROR,
+                ErrorID.INVALID_ENUM,
+                elem,
+                name=name,
+                actual=actual,
+                tag=tag,
+                values=values,
+                default=default.value,
+            )
+            self._add_error(error)
+            return default
 
     def _get_attr(self, attr_dict, attr, tag, elem=None, default=None):
         try:
             return attr_dict[attr]
         except KeyError:
+            payload = {
+                "title": attr.title(),
+                "attribute": attr,
+                "tag": tag,
+                "default": default,
+            }
             if default is None:
-                self._add_warning(RequiredAttributeWarning(tag, attr))
+                error = FomodError(
+                    ErrorKind.ERROR, ErrorID.REQUIRED_ATTRIBUTE, None, **payload
+                )
+                self._add_error(error)
                 raise
-            self._add_warning(DefaultAttributeWarning(tag, attr, default, elem))
+            error = FomodError(
+                ErrorKind.ERROR, ErrorID.DEFAULT_ATTRIBUTE, elem, **payload
+            )
+            self._add_error(error)
             return default
 
     def start(self, tag, attrib):
@@ -234,7 +254,9 @@ class Target(object):
 
     def comment(self, text):
         if text:
-            self._add_warning(CommentsPresentWarning())
+            self._add_error(
+                FomodError(ErrorKind.WARNING, ErrorID.COMMENTS_PRESENT, None)
+            )
 
     def close(self):
         assert not self._stack
@@ -255,7 +277,7 @@ def _iterparse(file_path, target):
     return target.close()
 
 
-def parse(source, warnings=None, lineno=False):
+def parse(source, errors=None, lineno=False):
     if isinstance(source, (tuple, list)):
         info, conf = source
     else:
@@ -274,24 +296,28 @@ def parse(source, warnings=None, lineno=False):
             )
         else:
             conf = str(conf)
-    if warnings is not None:
+    if errors is not None:
         schema = etree.XMLSchema(etree.parse(str(SCHEMA_PATH)))
         try:
             etree.parse(conf, etree.XMLParser(schema=schema))
         except etree.XMLSyntaxError as exc:
-            warnings.append(InvalidSyntaxWarning(str(exc)))
-    parser_target = Target(warnings)
+            error_msg = str(exc).replace(" (<string>, line 0)", "")
+            error = FomodError(
+                ErrorKind.ERROR, ErrorID.INVALID_SYNTAX, None, error_msg=error_msg
+            )
+            errors.append(error)
+    parser_target = Target(errors)
     if lineno:
         root = _iterparse(conf, parser_target)
         if info is not None:
             root._info = _iterparse(conf, parser_target)
     else:
-        parser = etree.XMLParser(target=Target(warnings))
+        parser = etree.XMLParser(target=Target(errors))
         root = etree.parse(conf, parser)
         if info is not None:
             root._info = etree.parse(info, parser)
-    if info is None and warnings is not None:
-        warnings.append(MissingInfoWarning())
+    if info is None and errors is not None:
+        errors.append(FomodError(ErrorKind.NOTE, ErrorID.MISSING_INFO, None))
     return root
 
 
