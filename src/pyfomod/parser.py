@@ -259,21 +259,23 @@ def parse(source, warnings=None, lineno=False):
     if isinstance(source, (tuple, list)):
         info, conf = source
     else:
-        path = Path(source) / "fomod"
-        if not path.is_dir():
-            raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), "fomod")
-        info = path / "info.xml"
-        conf = path / "moduleconfig.xml"
-        if not info.is_file():
-            info = None
+        for f in os.listdir(Path(source)):
+            path = Path(source) / f
+            if path.is_dir() and f.lower() == "fomod":
+                break
         else:
-            info = str(info)
-        if not conf.is_file():
+            raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), "fomod")
+        info, conf = None, None
+        for f in os.listdir(Path(path)):
+            filepath = Path(path) / f
+            if filepath.is_file() and f.lower() == "info.xml" and info is None:
+                info = str(filepath)
+            if filepath.is_file() and f.lower() == "moduleconfig.xml" and conf is None:
+                conf = str(filepath)
+        if conf is None:
             raise FileNotFoundError(
                 errno.ENOENT, os.strerror(errno.ENOENT), "moduleconfig.xml"
             )
-        else:
-            conf = str(conf)
     if warnings is not None:
         schema = etree.XMLSchema(etree.parse(str(SCHEMA_PATH)))
         try:
